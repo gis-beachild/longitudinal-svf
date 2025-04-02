@@ -1,0 +1,6 @@
+mode:
+  _target_: "modules.longitudinal.OurLongitudinalDeformation"
+  mode: ???
+  hidden_dim: null
+  size: null
+  max_freq: null

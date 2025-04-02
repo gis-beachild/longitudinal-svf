@@ -1,0 +1,7 @@
+defaults:
+  - our_longitudinal
+
+mode:
+  mode: "linear"
+
+
