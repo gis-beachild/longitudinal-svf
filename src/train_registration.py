@@ -5,6 +5,7 @@ import pytorch_lightning as pl
 from monai.metrics import DiceMetric
 from losses import PairwiseRegistrationLoss
 from modules.pairwise_registration import PairwiseRegistrationModuleVelocity
+from losses import NCCLoss
 
 class RegistrationTrainingModule(pl.LightningModule):
     """
@@ -55,7 +56,7 @@ class RegistrationTrainingModule(pl.LightningModule):
         :return: Loss value
         """
         source, target = batch.values()
-        velocity = self.forward(source['image'][tio.DATA], target['image'][tio.DATA])
+        velocity = self.forward(source['image'][tio.DATA].float(), target['image'][tio.DATA].float())
         back_velocity = -velocity
         forward_flow, backward_flow = self.reg_model.velocity2displacement(velocity), self.reg_model.velocity2displacement(back_velocity)
         warped_source = self.reg_model.warp(source['image'][tio.DATA], forward_flow)
@@ -71,6 +72,33 @@ class RegistrationTrainingModule(pl.LightningModule):
         self.log("Gradient", losses[3], prog_bar=True, on_epoch=True, sync_dist=True)
         self.log("Inverse consistency", losses[4], prog_bar=True, on_epoch=True, sync_dist=True)
         return loss
+        """
+
+        t = torch.rand(1, device=velocity.device)
+        flow_J = self.reg_model.velocity2displacement(t * velocity)
+        Jw = self.reg_model.warp(source['label'][tio.DATA].float(), flow_J)
+
+        flow_I = self.reg_model.velocity2displacement((t - 1.) * velocity)
+        Iw = self.reg_model.warp(target['label'][tio.DATA].float(), flow_I)
+
+        image_loss = torch.nn.MSELoss()(Jw, Iw)
+
+
+        flow_2t_1 = self.reg_model.velocity2displacement(((2. * t) - 1.) * velocity)
+        flow_JI =  self.reg_model.warp(flow_J, flow_I)  + flow_I
+        flow_IJ = self.reg_model.warp(flow_I, flow_J) + flow_J
+
+        flow_loss = 0.5 * (torch.mean((flow_2t_1 - flow_JI) ** 2) + torch.mean((flow_2t_1 - flow_IJ) ** 2))
+
+
+        loss = image_loss + flow_loss
+        self.log("Global loss", loss, prog_bar=True, on_epoch=True, sync_dist=True)
+        self.log("Segmentation", image_loss, prog_bar=True, on_epoch=True, sync_dist=True)
+        self.log("Regu", flow_loss, prog_bar=True, on_epoch=True, sync_dist=True)
+        return loss
+
+        """
+
 
     def on_train_epoch_end(self):
         torch.save(self.reg_model.state_dict(), self.save_path + "/last_model.pth")

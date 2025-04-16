@@ -3,7 +3,7 @@ import torch
 import pytorch_lightning as pl
 from pytorch_lightning.callbacks import ModelCheckpoint
 from modules.pairwise_registration import PairwiseRegistrationModuleVelocity
-from losses import PairwiseRegistrationLoss, MagnitudeLoss, Grad3d, GradIconInverseConsistency
+from losses import PairwiseRegistrationLoss, MagnitudeLoss, Grad3d, GradIconInverseConsistency, InverseConsistency, IconInverseConsistency
 from modules.data import LongitudinalDataModule, PairwiseRegistrationDataModule
 from modules.longitudinal_deformation import OurLongitudinalDeformation
 from omegaconf import DictConfig, OmegaConf
@@ -34,7 +34,7 @@ def main(cfg: DictConfig) -> None:
             t0=cfg.data.t0,
             t1=cfg.data.t1)
 
-        model: OurLongitudinalDeformation = hydra.utils.instantiate(cfg.model, reg_model=model, mode=cfg.train.mode, t0=cfg.data.t0, t1=cfg.data.t1, hidden_dim=cfg.model.mlp_hidden_dim, num_layers=cfg.model.mlp_num_layers)
+        model: OurLongitudinalDeformation = hydra.utils.instantiate(cfg.longitudinal_model.model, reg_model=model, time_mode=cfg.longitudinal_model.mode, t0=cfg.data.t0, t1=cfg.data.t1, hidden_dim=cfg.longitudinal_model.hidden_dim, max_freq=cfg.longitudinal_model.max_freq, size=cfg.longitudinal_model.size)
         if cfg.train.temporal_load != "":
             model.load_temporal(cfg.train.temporal_load)
     else:
@@ -59,7 +59,7 @@ def main(cfg: DictConfig) -> None:
                 ckpt_path=checkpoint)
     print("Training finished")
     print("Saving model")
-    training_module.save(save_path)
+    training_module.save(save_dir)
 
 if __name__ == '__main__':
     main()

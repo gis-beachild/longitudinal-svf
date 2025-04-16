@@ -1,8 +1,7 @@
 defaults:
-  - our_longitudinal
+  - default
 
-mode:
-  mode: "mlp"
-  hidden_dim: [32, 32, 32]
+mode: "mlp"
+hidden_dim: [32, 32, 32]
 
 

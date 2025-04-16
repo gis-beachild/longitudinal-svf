@@ -1,5 +1,5 @@
 module:
-    _target_: longitudinal_deformation.LongitudinalTrainingModule
+    _target_: train_longitudinal.LongitudinalTrainingModule
     num_inter_by_epoch: 4
 max_steps: 15000
 accumulate_grad_batches: 1
@@ -14,3 +14,6 @@ batch_size: 1
 checkpoint: ""
 penalize: "v"
 save_dir: 'longitudinal'
+mode: "longitudinal"
+load: ""
+temporal_load: ""

@@ -57,12 +57,12 @@ class HadjHamouLongitudinalDeformation(LongitudinalDeformation):
 
 
 class OurLongitudinalDeformation(LongitudinalDeformation):
-    def __init__(self, reg_model : PairwiseRegistrationModuleVelocity, mode: str, t0: int, t1: int,
+    def __init__(self, reg_model : PairwiseRegistrationModuleVelocity, time_mode: str, t0: int, t1: int,
                  hidden_dim: Union[List[int] | None] = None, size: list[int] | None = None, max_freq: int | None = 8):
         '''
         Our longitudinal deformation model
         :param reg_model: Registration model
-        :param mode: Interpolation mode, either 'mlp', 'inr' or 'linear'
+        :param time_mode: Interpolation mode, either 'mlp', 'inr' or 'linear'
         :param t0: time 0
         :param t1: time 1
         :param hidden_dim: Hidden dimensions of the MLP or INR
@@ -71,10 +71,11 @@ class OurLongitudinalDeformation(LongitudinalDeformation):
         '''
         super().__init__(t0=t0, t1=t1)
         self.reg_model = reg_model
-        self.mode = mode
-        if self.mode == 'mlp' and hidden_dim is not None:
+        self.time_mode = time_mode
+        self.temp_model = None
+        if self.time_mode == 'mlp' and hidden_dim is not None:
             self.temp_model = MLP(input_dim=1, output_dim=1, hidden_dim=hidden_dim)
-        if self.mode == 'inr' and hidden_dim is not None:
+        if self.time_mode == 'inr' and hidden_dim is not None:
             self.max_freq = max_freq
             self.temp_model = ImplicitNeuralNetwork(size=size, hidden_dim=hidden_dim, max_freq=max_freq)
 
@@ -85,9 +86,9 @@ class OurLongitudinalDeformation(LongitudinalDeformation):
         return velocity
 
     def encode_time(self, time: torch.Tensor) -> torch.Tensor:
-        if self.mode == 'mlp':
-            time = self.temp_model(torch.asarray([time]).to(self.velocity.device))
-        if self.mode == 'inr':
+        if self.time_mode == 'mlp':
+            time = self.temp_model(time)
+        if self.time_mode == 'inr':
             time = self.temp_model(time)
         return time
 

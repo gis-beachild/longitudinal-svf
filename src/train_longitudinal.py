@@ -7,6 +7,7 @@ import torchio as tio
 import pytorch_lightning as pl
 from losses import PairwiseRegistrationLoss
 from modules.longitudinal_deformation import OurLongitudinalDeformation
+from monai.metrics import DiceMetric
 
 class LongitudinalTrainingModule(pl.LightningModule):
     '''
@@ -28,6 +29,7 @@ class LongitudinalTrainingModule(pl.LightningModule):
         self.model = model
         self.save_path = save_path
         self.num_inter_by_epoch = num_inter_by_epoch
+        self.dice_metric = DiceMetric(include_background=True, reduction="none")
         self.dice_max = 0 # Maximum dice score
         self.learning_rate = learning_rate
 
@@ -60,24 +62,43 @@ class LongitudinalTrainingModule(pl.LightningModule):
 
     def training_step(self, _):
         velocity = self.model.forward((self.subject_t0['image'][tio.DATA], self.subject_t1['image'][tio.DATA]))
-        losses = torch.zeros(5).float().to(self.device)
-        index = random.sample(range(0, self.trainer.train_dataloader.dataset.num_subjects - 1), self.num_inter_by_epoch)
+        index = random.sample(range(1, self.trainer.train_dataloader.dataset.num_subjects), self.num_inter_by_epoch)
+        image_loss = torch.zeros(1).to(self.device)
+        flow_loss = torch.zeros(1).to(self.device)
+
         for i in index:
-            intermediate_subject = self.trainer.train_dataloader.dataset[i + 1]
-            inter_velocity = velocity * self.model.encode_time(time=torch.tensor([intermediate_subject['age']], device=self.device))
-            forward_flow = self.model.reg_model.velocity2displacement(inter_velocity)
-            backward_flow = self.model.reg_model.velocity2displacement(-inter_velocity)
-            inter_image = intermediate_subject['image'][tio.DATA].float().unsqueeze(dim=0).to(self.device)
-            inter_label = intermediate_subject['label'][tio.DATA].float().unsqueeze(dim=0).to(self.device)
-            losses += self.loss(self.subject_t0['image'][tio.DATA], inter_image, self.subject_t0['label'][tio.DATA],
-                                inter_label, forward_flow, backward_flow, None if self.penalize == 'd' else velocity)
-        loss = losses.sum() # Compute total loss
-        if self.model.mode != 'linear':
-            time_0 = self.model.encode_time(torch.tensor([0.0], device=velocity.device))
-            time_1 = self.model.encode_time(torch.tensor([1.0], device=velocity.device))
-            loss_nl = nn.MSELoss()(time_0, torch.zeros_like(time_0)) + nn.MSELoss()(time_1, torch.ones_like(time_1))
-            loss += loss_nl
-            self.log("NL", loss_nl, prog_bar=True, on_epoch=True, sync_dist=True)
+            k = self.trainer.train_dataloader.dataset[i]
+            time = self.model.encode_time(torch.Tensor([k['age']]).to(self.device))
+            flow_J = self.model.reg_model.velocity2displacement(time * velocity)
+            Jw = self.model.reg_model.warp(self.subject_t0['label'][tio.DATA].float(), flow_J)
+            flow_I = self.model.reg_model.velocity2displacement((time - 1.) * velocity)
+            Iw = self.model.reg_model.warp(self.subject_t1['label'][tio.DATA].float(), flow_I)
+            K = k['label'][tio.DATA].float().to(Jw.device).unsqueeze(dim=0)
+
+
+            image_loss +=  (torch.nn.MSELoss()(Jw, Iw) +
+                           torch.nn.MSELoss()(K, Iw) +
+                           torch.nn.MSELoss()(K, Jw)) / 3.0
+
+
+            flow_2t_1 = self.model.reg_model.velocity2displacement(((2. * time) - 1.) * velocity)
+            flow_JI = self.model.reg_model.warp(flow_J, flow_I) + flow_I
+            flow_IJ = self.model.reg_model.warp(flow_I, flow_J) + flow_J
+            flow_loss += 0.5 * (torch.mean((flow_2t_1 - flow_JI) ** 2) + torch.mean((flow_2t_1 - flow_IJ) ** 2))
+
+        loss = (image_loss + 0.5 * flow_loss + nn.MSELoss()(torch.zeros(1).to(self.device), self.model.encode_time(torch.zeros(1).to(self.device))) +
+                nn.MSELoss()(torch.ones(1).to(self.device), self.model.encode_time(torch.ones(1).to(self.device))))
+        self.log("Global loss", loss, prog_bar=True, on_epoch=True, sync_dist=True)
+        self.log("Segmentation", image_loss, prog_bar=True, on_epoch=True, sync_dist=True)
+        self.log("Regu", flow_loss, prog_bar=True, on_epoch=True, sync_dist=True)
+        return loss
+
+        """
+        inter_image = intermediate_subject['image'][tio.DATA].float().unsqueeze(dim=0).to(self.device)
+        inter_label = intermediate_subject['label'][tio.DATA].float().unsqueeze(dim=0).to(self.device)
+        losses += self.loss(self.subject_t0['image'][tio.DATA], inter_image, self.subject_t0['label'][tio.DATA],
+                            inter_label, forward_flow, backward_flow, None if self.penalize == 'd' else velocity)
+        
         self.log("Global loss", loss, prog_bar=True, on_epoch=True, sync_dist=True)
         self.log("Similitude", losses[0], prog_bar=True, on_epoch=True, sync_dist=True)
         self.log("Segmentation", losses[1], prog_bar=True, on_epoch=True, sync_dist=True)
@@ -85,12 +106,12 @@ class LongitudinalTrainingModule(pl.LightningModule):
         self.log("Gradient", losses[3], prog_bar=True, on_epoch=True, sync_dist=True)
         self.log("Inverse consistency", losses[4], prog_bar=True, on_epoch=True, sync_dist=True)
         return loss
-
+        """
 
     def on_train_epoch_end(self):
         torch.save(self.model.reg_model.state_dict(), self.save_path + "/last_model_reg.pth")
-        if self.model.mode == 'mlp':
-            torch.save(self.model.mlp_model.state_dict(), self.save_path + "/last_model_mlp.pth")
+        if self.model.time_mode == 'mlp':
+            torch.save(self.model.temp_model.state_dict(), self.save_path + "/last_model_mlp.pth")
 
 
     def validation_step(self, batch, batch_idx):
@@ -117,7 +138,7 @@ class LongitudinalTrainingModule(pl.LightningModule):
                                  subject['label'][tio.DATA].to(self.device).int().unsqueeze(0))
                 overall_dice = self.dice_metric.aggregate()
                 self.dice_metric.reset()
-        timed_velocity = self.model.encode_time(torch.tensor([1.0], device=velocity.device)) * velocity
+        timed_velocity = velocity
         forward_flow = self.model.reg_model.velocity2displacement(timed_velocity)
         label_warped_source = self.model.reg_model.warp(subject_t0['label'][tio.DATA].to(self.device).float(),
                                                forward_flow)
@@ -129,12 +150,15 @@ class LongitudinalTrainingModule(pl.LightningModule):
         tio.ScalarImage(tensor=image_warped_source.squeeze(0).detach().cpu().numpy(),
                         affine=subject_t0['image'].affine).save(
             self.save_path + "/image_warped_source.nii.gz")
+        tio.ScalarImage(tensor=forward_flow.squeeze(0).detach().cpu().numpy(),
+                        affine=subject_t0['image'].affine).save(
+            self.save_path + "/forward_dvf.nii.gz")
         mean_dices = torch.mean(overall_dice).item()
         if self.dice_max < mean_dices:
             self.dice_max = mean_dices
             torch.save(self.model.reg_model.state_dict(), self.save_path + "/model_reg_best.pth")
-            if self.model.mode == 'mlp':
-                torch.save(self.model.mlp_model.state_dict(), self.save_path + "/model_mlp_best.pth")
+            if self.model.temp_model is not None:
+                torch.save(self.model.temp_model.state_dict(), self.save_path + "/model_mlp_best.pth")
             self.log("Dice max", self.dice_max, prog_bar=True, on_epoch=True, sync_dist=True)
         self.log("Mean dice", mean_dices, prog_bar=True, on_epoch=True, sync_dist=True)
 

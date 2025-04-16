@@ -14,3 +14,4 @@ save_dir: 'longitudinal/linear'
 batch_size: 1
 checkpoint: ""
 penalize: "v"
+time_mode: "inr"

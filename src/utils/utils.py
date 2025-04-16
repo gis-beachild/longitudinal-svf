@@ -61,7 +61,7 @@ def create_new_versioned_directory(base_name='', start_version=0):
 
 def write_namespace_arguments(args, log_file='args_log.json'):
     log_entry = {
-        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "arguments": vars(args)
     }
 

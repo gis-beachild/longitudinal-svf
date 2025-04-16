@@ -1,6 +1,4 @@
 defaults:
-  - our_longitudinal
-
-mode:
-  mode: "linear"
-  hidden_dim: [32, 32, 32]
+  - default
+mode: "linear"
+hidden_dim: [32, 32, 32]
