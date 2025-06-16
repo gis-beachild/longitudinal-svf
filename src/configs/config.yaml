@@ -1,5 +1,5 @@
 defaults:
-  - config_pairwise
+  - config_longitudinal
 
 hydra:
   run:

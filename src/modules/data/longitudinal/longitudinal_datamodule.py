@@ -3,7 +3,7 @@ import torchio as tio
 import pytorch_lightning as pl
 from pytorch_lightning.utilities.types import TRAIN_DATALOADERS
 from torchvision import transforms
-from .longitudinal_dataset import LongitudinalSubjectDataset
+from .longitudinal_dataset import LongitudinalDataset
 
 
 class LongitudinalDataModule(pl.LightningDataModule):
@@ -56,7 +56,6 @@ class LongitudinalDataModule(pl.LightningDataModule):
             )
             subjects.append(subject)
         subjects.sort(key=lambda x: x['age'])
-
         self.train_subjects = subjects
         self.val_subjects = subjects
         self.test_subjects = self.val_subjects
@@ -65,28 +64,27 @@ class LongitudinalDataModule(pl.LightningDataModule):
         transform = transforms.Compose([
             tio.CropOrPad(self.csize),
             tio.Resize(self.rsize),
-            tio.ZNormalization(masking_method=tio.ZNormalization.mean),
-            tio.OneHot(self.num_classes),
+            tio.RescaleIntensity(out_min_max=(0, 1), percentiles=(0.5, 99.5), masking_method='label'),
+            tio.RandomFlip(axes=('LR',)),
+            tio.OneHot(self.num_classes)
         ])
-        train_dataset = LongitudinalSubjectDataset(self.train_subjects, transform=transform)
+        train_dataset =  LongitudinalDataset(self.train_subjects, transform=transform)
         return tio.SubjectsLoader(train_dataset, batch_size=self.batch_size, num_workers=self.num_workers)
 
-    def val_dataloader(self) -> TRAIN_DATALOADERS:
+    def val_dataloader(self) -> tio.SubjectsLoader:
         transform = transforms.Compose([
             tio.CropOrPad(self.csize),
             tio.Resize(self.rsize),
-            tio.ZNormalization(masking_method=tio.ZNormalization.mean),
-            tio.OneHot(self.num_classes),
+            tio.RescaleIntensity(out_min_max=(0, 1), percentiles=(0.5, 99.5), masking_method='label'),
         ])
-        val_dataset = LongitudinalSubjectDataset(self.val_subjects, transform=transform)
+        val_dataset = LongitudinalDataset(self.val_subjects, transform=transform)
         return tio.SubjectsLoader(val_dataset, batch_size=self.batch_size, num_workers=self.num_workers)
 
-    def test_dataloader(self) -> TRAIN_DATALOADERS:
+    def test_dataloader(self) -> tio.SubjectsLoader:
         transform = transforms.Compose([
             tio.CropOrPad(self.csize),
             tio.Resize(self.rsize),
-            tio.ZNormalization(masking_method=tio.ZNormalization.mean),
-            tio.OneHot(self.num_classes),
+            tio.RescaleIntensity(out_min_max=(0, 1), percentiles=(0.5, 99.5), masking_method='label'),
         ])
-        test_dataset = LongitudinalSubjectDataset(self.test_subjects, transform=transform)
+        test_dataset = LongitudinalDataset(self.test_subjects, transform=transform)
         return tio.SubjectsLoader(test_dataset, batch_size=self.batch_size, num_workers=self.num_workers)

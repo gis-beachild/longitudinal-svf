@@ -1,21 +1,68 @@
 import os
 import torch
+import torch.nn as nn
 import torchio as tio
 import pytorch_lightning as pl
 from monai.metrics import DiceMetric
-from losses import PairwiseRegistrationLoss
-from modules.pairwise_registration import PairwiseRegistrationModuleVelocity
-from losses import NCCLoss
+from modules.registration import RegistrationModule
+from utils.grid_utils import warp, compose
+import torch.nn.functional as F
+
+class PairwiseRegistrationLoss(nn.Module):
+    def __init__(self, seg_loss: nn.Module = None, mag_loss: nn.Module= None,
+                 grad_loss: nn.Module= None, inv_loss: nn.Module = None, lambda_sim: float = 0, lambda_seg: float = 0,
+                 lambda_mag: float = 0, lambda_grad: float = 0):
+        super().__init__()
+        self.sim_loss = nn.MSELoss()
+        self.grad_loss = grad_loss
+        self.mag_loss = mag_loss
+        self.seg_loss = seg_loss
+        self.inv_loss = inv_loss
+        self.lambda_seg = lambda_seg
+        self.lambda_sim = lambda_sim
+        self.lambda_mag = lambda_mag
+        self.lambda_grad = lambda_grad
+
+    def forward(self, source_image: torch.Tensor, target_image: torch.Tensor, source_label: torch.Tensor,
+                target_label: torch.Tensor, f: torch.Tensor, bf: torch.Tensor, v: torch.Tensor = None) -> torch.Tensor:
+        '''
+        Compute the registration loss for a pair of subjects.
+        :param source_image: Source image
+        :param target_image: Target image
+        :param source_label: Source label
+        :param target_label: Target label
+        :param f: Flow field
+        :param bf: Backward flow field
+        :param v: Velocity field (Set to None to penalize the displacement field)
+        '''
+        loss_errors = torch.zeros(4).float().to(source_image.device)
+        # Similarity loss
+        if self.lambda_sim > 0:
+            loss_errors[0] = self.lambda_sim * self.sim_loss(source_image, target_image)
+
+        # Segmentation loss
+        if self.lambda_seg > 0:
+            loss_errors[1] = self.lambda_seg * F.mse_loss(source_label, target_label, reduction='none').mean(dim=(0, 2, 3, 4)).sum()
+
+        # Magnitude loss
+        if self.lambda_mag > 0:
+            loss_errors[2] = self.lambda_mag * (self.mag_loss(f) if v is None else self.mag_loss(v))
+
+        # Gradient loss
+        if self.lambda_grad > 0:
+            loss_errors[3] = self.lambda_grad * (self.grad_loss(f) if v is None else self.grad_loss(v))
+
+        return loss_errors
 
 class RegistrationTrainingModule(pl.LightningModule):
     """
     Registration training module for 3D image registration
     """
-    def __init__(self, model : PairwiseRegistrationModuleVelocity, loss: PairwiseRegistrationLoss, learning_rate: float= 0.001,
+    def __init__(self, model : RegistrationModule, loss: PairwiseRegistrationLoss, learning_rate: float= 0.001,
                  save_path: str = "./", penalize: str = 'v'):
         """
         Registration training module for 3D image registration
-        :param model: RegistrationModuleSVF
+        :param model: RegistrationModule
         :param learning_rate: Learning rate for the optimizer
         :param loss: PairwiseRegistrationLoss
         :param save_path: Path to save the model
@@ -23,7 +70,6 @@ class RegistrationTrainingModule(pl.LightningModule):
         """
         super().__init__()
         self.reg_model = model
-        self.loss = loss
         if penalize not in ['v', 'd']:
             raise ValueError("Penalize must be 'v' or 'd'")
         self.penalize = penalize
@@ -59,8 +105,8 @@ class RegistrationTrainingModule(pl.LightningModule):
         velocity = self.forward(source['image'][tio.DATA].float(), target['image'][tio.DATA].float())
         back_velocity = -velocity
         forward_flow, backward_flow = self.reg_model.velocity2displacement(velocity), self.reg_model.velocity2displacement(back_velocity)
-        warped_source = self.reg_model.warp(source['image'][tio.DATA], forward_flow)
-        warped_source_label = self.reg_model.warp(source['label'][tio.DATA].float(), forward_flow)
+        warped_source = warp(source['image'][tio.DATA], forward_flow)
+        warped_source_label = warp(source['label'][tio.DATA].float(), forward_flow)
         losses = self.loss(warped_source, target['image'][tio.DATA], warped_source_label.float(),
                            target['label'][tio.DATA].float(), forward_flow, backward_flow,
                            None if self.penalize == 'd' else velocity)
@@ -70,10 +116,8 @@ class RegistrationTrainingModule(pl.LightningModule):
         self.log("Segmentation", losses[1], prog_bar=True, on_epoch=True, sync_dist=True)
         self.log("Magnitude", losses[2], prog_bar=True, on_epoch=True, sync_dist=True)
         self.log("Gradient", losses[3], prog_bar=True, on_epoch=True, sync_dist=True)
-        self.log("Inverse consistency", losses[4], prog_bar=True, on_epoch=True, sync_dist=True)
         return loss
         """
-
         t = torch.rand(1, device=velocity.device)
         flow_J = self.reg_model.velocity2displacement(t * velocity)
         Jw = self.reg_model.warp(source['label'][tio.DATA].float(), flow_J)
@@ -111,9 +155,9 @@ class RegistrationTrainingModule(pl.LightningModule):
             velocity = self.forward(source['image'][tio.DATA], target['image'][tio.DATA])
             forward_flow = self.reg_model.velocity2displacement(velocity)
             backward_flow = self.reg_model.velocity2displacement(-velocity)
-        warped_source = self.reg_model.warp(source['image'][tio.DATA], forward_flow)
-        warped_source_label = self.reg_model.warp(source['label'][tio.DATA].float(), forward_flow)
-        ## Compute the loss
+        warped_source = warp(source['image'][tio.DATA], forward_flow)
+        warped_source_label = warp(source['label'][tio.DATA].float(), forward_flow, mode='nearest')
+
         losses = self.loss(warped_source, target['image'][tio.DATA],
                            warped_source_label.float(), target['label'][tio.DATA].float(),
                            forward_flow, backward_flow, None if self.penalize == 'd' else velocity)
@@ -122,8 +166,12 @@ class RegistrationTrainingModule(pl.LightningModule):
         ## Compute the DICE Score
         warped_source_label = tio.LabelMap(tensor=torch.argmax(warped_source_label, dim=1).int().detach().cpu().numpy(), affine=target['label']['affine'][0])
         warped_source_label = tio.OneHot(source['label'][tio.DATA].shape[1])(warped_source_label)
-        dice = self.dice_metric(warped_source_label[tio.DATA].to(self.device).unsqueeze(0), target['label'][tio.DATA].float().to(self.device))[0]
+        dice = self.dice_metric(
+            torch.nn.functional.one_hot(warped_source_label.squeeze().long()).permute(3, 0, 1, 2).unsqueeze(0),
+            torch.nn.functional.one_hot(target['label'][tio.DATA].squeeze().long()).permute(3, 0, 1, 2).to(self.device).unsqueeze(0))
+        self.dice_metric.reset()
         dice_scores.append(torch.mean(dice[1:]).cpu().numpy())
+
         mean_dices =  sum(dice_scores) / len(dice_scores)
         if self.dice_max < mean_dices:
             self.dice_max = mean_dices
@@ -134,7 +182,6 @@ class RegistrationTrainingModule(pl.LightningModule):
         self.log("Segmentation", losses[1], prog_bar=True, on_epoch=True, sync_dist=True)
         self.log("Magnitude", losses[2], prog_bar=True, on_epoch=True, sync_dist=True)
         self.log("Gradient", losses[3], prog_bar=True, on_epoch=True, sync_dist=True)
-        self.log("Inverse consistency", losses[4], prog_bar=True, on_epoch=True, sync_dist=True)
         return loss
 
     def save(self, path: str):

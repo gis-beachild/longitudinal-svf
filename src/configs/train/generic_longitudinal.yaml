@@ -8,7 +8,6 @@ lambda_sim: 1.0
 lambda_seg: 5.0
 lambda_mag: 0.1
 lambda_grad: 0.01
-lambda_inv: 0.1
 learning_rate: 0.001
 batch_size: 1
 checkpoint: ""

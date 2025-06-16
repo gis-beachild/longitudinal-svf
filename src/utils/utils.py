@@ -1,13 +1,9 @@
 import os
-import json
-import monai
 import torch
-import torchvision
 import pandas as pd
-from datetime import datetime
 from typing import Callable, List
 import torchio as tio
-import datetime
+import pytorch_volumetric as pv
 
 def normalize_to_0_1(volume):
     '''
@@ -17,6 +13,31 @@ def normalize_to_0_1(volume):
     min_val = volume.min()
     return (volume - min_val) / (max_val - min_val)
 
+import torch.nn.functional as F
+def compute_sdf_3d(mask):
+    """
+    label: (B,C,D,H,W) float binary
+    Retourne: same shape, float SDF différentiable sur GPU
+    """
+    """
+    Calcule la Signed Distance Function (SDF) 3D différentiable.
+    Args:
+        mask (torch.Tensor): Tenseur binaire de forme (B, C, D, H, W).
+    Returns:
+        torch.Tensor: SDF de forme (B, C, D, H, W).
+    """
+    dx = torch.abs(mask[:, :, 1:, :, :] - mask[:, :, :-1, :, :])
+    dy = torch.abs(mask[:, :, :, 1:, :] - mask[:, :, :, :-1, :])
+    dz = torch.abs(mask[:, :, :, :, 1:] - mask[:, :, :, :, :-1])
+    edges = F.pad(dx, (0,0,0,0,0,1)) + F.pad(dy, (0,0,0,1,0,0)) + F.pad(dz, (0,1,0,0,0,0))
+    sdf = 1.0 / (edges + 1e-6)
+    # Pondération signée : + à l'intérieur (masque > 0.5), - à l'extérieur
+    sign = torch.where(mask > 0.5, 1.0, -1.0)
+    return sdf * sign
+
+def get_weight_from_sdm(sdm, max_distance=5):
+    weight = torch.exp(- (sdm / max_distance)**2)
+    return weight  # Taille (1, 1, D, H, W)
 
 def subjects_from_csv(dataset_path: str, age=True, lambda_age: Callable = lambda x: x) -> List[tio.Subject]:
     """
@@ -59,17 +80,6 @@ def create_new_versioned_directory(base_name='', start_version=0):
     return new_version
 
 
-def write_namespace_arguments(args, log_file='args_log.json'):
-    log_entry = {
-        "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        "arguments": vars(args)
-    }
-
-    # If log file exists, append; else, create
-    with open(log_file, 'w') as file:
-        json.dump([log_entry], file, indent=4)
-
-
 # Create a new directory recursively if it does not exist
 def create_directory(directory):
     '''
@@ -81,68 +91,4 @@ def create_directory(directory):
     return directory
 
 
-def volume_to_batch_image(volume, normalize=True, dim='D', batch=0):
-    """ Helper function that, given a 5 D tensor, converts it to a 4D
-    tensor by choosing element batch, and moves the dim into the batch
-    dimension, this then allows the slices to be tiled for tensorboard
 
-    Args:
-        volume: volume to be viewed
-
-    Returns:
-        3D tensor (already tiled)
-    """
-    if batch >= volume.shape[0]:
-        raise ValueError('{} batch index too high'.format(batch))
-    if dim == 'D':
-        image = volume[batch, :, :, :, :].permute(1, 0, 2, 3)
-    elif dim == 'H':
-        image = volume[batch, :, :, :, :].permute(2, 0, 1, 3)
-    elif dim == 'W':
-        image = volume[batch, :, :, :, :].permute(3, 0, 1, 2)
-    else:
-        raise ValueError('{} dim not supported'.format(dim))
-    if normalize:
-        return torchvision.utils.make_grid(normalize_to_0_1(image))
-    else:
-        return torchvision.utils.make_grid(image)
-
-
-def get_cuda_is_available_or_cpu():
-    return torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-def get_activation_from_string(activation):
-    if activation == 'ReLU':
-        return torch.nn.ReLU
-    elif activation == 'LeakyReLU':
-        return torch.nn.LeakyReLU
-    elif activation == 'Sigmoid':
-        return torch.nn.Sigmoid
-    elif activation == 'Tanh':
-        return torch.nn.Tanh
-    elif activation == 'Softmax':
-        return torch.nn.Softmax
-    elif activation == 'Softplus':
-        return torch.nn.Softplus
-    elif activation == 'Softsign':
-        return torch.nn.Softsign
-    elif activation == 'ELU':
-        return torch.nn.ELU
-    elif activation == 'SELU':
-        return torch.nn.SELU
-    elif activation == 'CELU':
-        return torch.nn.CELU
-    elif activation == 'GLU':
-        return torch.nn.GLU
-    elif activation == 'Hardshrink':
-        return torch.nn.Hardshrink
-    elif activation == 'Hardtanh':
-        return torch.nn.Hardtanh
-    elif activation == 'LogSigmoid':
-        return torch.nn.LogSigmoid
-    elif activation == 'Softmin':
-        return torch.nn.Softmin
-    elif activation == 'Softmax2d':
-        return torch.nn.Softmax2d
-    else:
-        return None
