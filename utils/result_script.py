@@ -13,7 +13,7 @@ from pathlib import Path
 from matplotlib.colors import Normalize
 from registration_svf.utils.grid_utils import get_reference_grid
 import meshio
-from utils.gyrification_index import rescale_initial_smooth_mesh_to_folded_mesh, compute_gyrification_index
+from gyrification_index import rescale_initial_smooth_mesh_to_folded_mesh, compute_gyrification_index
 import torch
 import torchio as tio
 import glob
