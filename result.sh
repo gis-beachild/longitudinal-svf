@@ -46,41 +46,41 @@ fi
 NORMALIZED_PATH="./results/$DATASET/GT/gi.csv"
 
 if [[ "GT" == true ]]; then
-    python ./utils/result_script.py --savePath $SAVE_PATH --dataset_yaml $DATASET  --pred /result/$DATASET/GT/ --rotate 90
+    python ./utils/result_script.py --savePath $SAVE_PATH --dataset_yaml $DATASET  --pred /result/$DATASET/gt/ --rotate 90
 fi
 
 if [[ "$ANTS" == true ]]; then
-    python ./utils/result_script.py --savePath $SAVE_PATH --dataset_yaml $DATASET --pred ./result/$DATASET/ANTS/ --rotate 90  --gi_normalized $NORMALIZED_PATH
+    python ./utils/result_script.py --savePath $SAVE_PATH --dataset_yaml $DATASET --pred ./result/$DATASET/ants/ --rotate 90  --gi_normalized $NORMALIZED_PATH
 fi
 
 if [[ "$UNIGRAD" == true ]]; then
-    python ./utils/result_script.py --savePath $SAVE_PATH --dataset_yaml $DATASET --pred ./result/$DATASET/UI/ --rotate 90  --gi_normalized $NORMALIZED_PATH
+    python ./utils/result_script.py --savePath $SAVE_PATH --dataset_yaml $DATASET --pred ./result/$DATASET/ui/ --rotate 90  --gi_normalized $NORMALIZED_PATH
 fi
 
 if [[ "$SGDIR" == true ]]; then
-    python ./utils/result_script.py --savePath $SAVE_PATH --dataset_yaml $DATASET --pred ./result/$DATASET/SGDIR/ --rotate 90  --gi_normalized $NORMALIZED_PATH
+    python ./utils/result_script.py --savePath $SAVE_PATH --dataset_yaml $DATASET --pred ./result/$DATASET/sgdir/ --rotate 90  --gi_normalized $NORMALIZED_PATH
 fi
 
 if [[ "$NODER" == true ]]; then
-    python ./utils/result_script.py --savePath $SAVE_PATH --dataset_yaml $DATASET --pred ./result/$DATASET/NODER/ --rotate 90  --gi_normalized $NORMALIZED_PATH
+    python ./utils/result_script.py --savePath $SAVE_PATH --dataset_yaml $DATASET --pred ./result/$DATASET/noder/ --rotate 90  --gi_normalized $NORMALIZED_PATH
 fi
 
 if [[ "$HH" == true ]]; then
-    python ./utils/result_script.py --savePath $SAVE_PATH --dataset_yaml $DATASET --pred ./result/$DATASET/HH/ --rotate 90  --gi_normalized $NORMALIZED_PATH
+    python ./utils/result_script.py --savePath $SAVE_PATH --dataset_yaml $DATASET --pred ./result/$DATASET/hh/ --rotate 90  --gi_normalized $NORMALIZED_PATH
 fi
 
 if [[ "$SVF_PAIR" == true ]]; then
-    python ./utils/result_script.py --savePath $SAVE_PATH --dataset_yaml $DATASET --pred ./result/$DATASET/SVF_PAIR/ --rotate 90  --gi_normalized $NORMALIZED_PATH
+    python ./utils/result_script.py --savePath $SAVE_PATH --dataset_yaml $DATASET --pred ./result/$DATASET/svf_pair/ --rotate 90  --gi_normalized $NORMALIZED_PATH
 fi
 
 if [[ "$SVF_INT" == true ]]; then
-    python ./utils/result_script.py --savePath $SAVE_PATH --dataset_yaml $DATASET --pred ./result/$DATASET/SVF_INT/ --rotate 90  --gi_normalized $NORMALIZED_PATH
+    python ./utils/result_script.py --savePath $SAVE_PATH --dataset_yaml $DATASET --pred ./result/$DATASET/svf_int/ --rotate 90  --gi_normalized $NORMALIZED_PATH
 fi
 
 if [[ "$SVF_LIN" == true ]]; then
-    python ./utils/result_script.py --savePath $SAVE_PATH --dataset_yaml $DATASET --pred ./result/$DATASET/SVF_LIN/ --rotate 90  --gi_normalized $NORMALIZED_PATH
+    python ./utils/result_script.py --savePath $SAVE_PATH --dataset_yaml $DATASET --pred ./result/$DATASET/svf_linear/ --rotate 90  --gi_normalized $NORMALIZED_PATH
 fi
 
 if [[ "$SVF_MLP" == true ]]; then
-    python ./utils/result_script.py --savePath $SAVE_PATH --dataset_yaml $DATASET --pred ./result/$DATASET/SVF_MLP/ --rotate 90  --gi_normalized $NORMALIZED_PATH
+    python ./utils/result_script.py --savePath $SAVE_PATH --dataset_yaml $DATASET --pred ./result/$DATASET/svf_mlp/ --rotate 90  --gi_normalized $NORMALIZED_PATH
 fi
