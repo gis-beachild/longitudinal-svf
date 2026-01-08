@@ -1,0 +1,10 @@
+csv_path: null
+label_metadata: null
+t0: null
+t1: null
+batch_size: 1
+num_workers: 8
+csize: [128, 128, 128]
+rsize: [128, 128, 128]
+num_classes: 20
+date_format: null

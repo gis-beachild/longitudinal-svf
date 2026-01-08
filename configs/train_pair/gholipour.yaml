@@ -1,0 +1,20 @@
+defaults:
+    # General settings
+    - generic_pairwise
+
+mode: 'pairwise'
+max_steps: 100000
+accumulate_grad_batches: 1
+sim_loss: "mi"
+lambda_sim: 0.0
+lambda_seg: 1.0
+lambda_reg: 100
+learning_rate: 0.0005
+tensor_cores: false
+batch_size: 1
+checkpoint: ""
+save_dir: 'pairwise'
+load: '/home/florian/Documents/Programs/longitudinal-svf-pair/src/outputs/pairwise/2025-09-02_21-13-46/last_model.pth'
+
+
+

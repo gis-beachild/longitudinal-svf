@@ -1,0 +1,32 @@
+# data
+name: 'dhcp'
+path: 'sample_data/dhcp_full'
+crop_x: 224
+crop_y: 224
+crop_z: 224
+
+# network configs
+loss_type: 'ncc'
+down_channels: [32, 64, 128, 128, 256]
+up_channels: [256, 128, 128, 64, 32]
+time_emb_dim: 64
+decoder_only: false
+
+# training configs
+batch_size: 1
+res_levels: 8
+ss_lr: 1e-4
+ss_epochs: 1000
+ss_eval_interval: 1
+checkpoints_path: 'checkpoints/dhcp_emb.pt'
+logdir: 'logs/dhcp_emb.log'
+
+# loss factors
+image_loss_coeff: 1.
+ss_loss_coeff: 1e5
+
+# evaluation configs
+down_factor: 2
+save_evals: true
+save_evals_path: 'evals/dhcp_emb'
+eval_logdir: 'logs/dhcp_emb_eval.log'

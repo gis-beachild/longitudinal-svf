@@ -1,0 +1,21 @@
+{
+  "num_classes": 15,
+  "CortexIndex": [1],
+  "class_labels": [
+    "background",
+    "CP",
+    "WM",
+    "Ventricles",
+    "Cerebellum",
+    "hippocampus",
+    "caudate",
+    "thalamus",
+    "claustrum",
+    "putamen",
+    "hypothalamus",
+    "brainstem",
+    "VentralPallidum_NucleusAccumbens",
+    "SeptalNucleus",
+    "Amygdala"
+  ]
+}

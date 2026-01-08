@@ -1,0 +1,17 @@
+{
+  "num_classes": 11,
+  "CortexIndex": [2],
+  "class_labels": [
+    "background",
+    "CSF",
+    "Cortex",
+    "WhiteMatter",
+    "Ventricles",
+    "GFL",
+    "Thalamus",
+    "Cerebellum",
+    "Brainstem",
+    "CorpusCallosum",
+    "Striatum"
+  ]
+}

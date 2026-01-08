@@ -1,0 +1,7 @@
+image,label,age
+/home/florian/Documents/Dataset/OHSU_Ferret_Atlas/affine/crop/structural/P08_T2W_template.nii.gz,/home/florian/Documents/Dataset/OHSU_Ferret_Atlas/affine/crop/parcellations/P08_labelmap.nii.gz,8
+/home/florian/Documents/Dataset/OHSU_Ferret_Atlas/affine/crop/structural/P14_T2W_template.nii.gz,/home/florian/Documents/Dataset/OHSU_Ferret_Atlas/affine/crop/parcellations/P14_labelmap.nii.gz,14
+/home/florian/Documents/Dataset/OHSU_Ferret_Atlas/affine/crop/structural/P20_T2W_template.nii.gz,/home/florian/Documents/Dataset/OHSU_Ferret_Atlas/affine/crop/parcellations/P20_labelmap.nii.gz,20
+/home/florian/Documents/Dataset/OHSU_Ferret_Atlas/affine/crop/structural/P26_T2W_template.nii.gz,/home/florian/Documents/Dataset/OHSU_Ferret_Atlas/affine/crop/parcellations/P26_labelmap.nii.gz,26
+/home/florian/Documents/Dataset/OHSU_Ferret_Atlas/affine/crop/structural/P32_T2W_template.nii.gz,/home/florian/Documents/Dataset/OHSU_Ferret_Atlas/affine/crop/parcellations/P32_labelmap.nii.gz,32
+/home/florian/Documents/Dataset/OHSU_Ferret_Atlas/affine/crop/structural/P38_T2W_template.nii.gz,/home/florian/Documents/Dataset/OHSU_Ferret_Atlas/affine/crop/parcellations/P38_labelmap.nii.gz,38

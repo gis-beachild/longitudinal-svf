@@ -1,0 +1,12 @@
+defaults:
+  - data: atlasimages
+  - svf_model: dyn_unet_dual
+  - train_long: atlas_mlp
+hydra:
+  job:
+    name: longitudinal
+  run:
+    dir: outputs/${hydra.job.name}/${now:%Y-%m-%d_%H-%M-%S}
+  sweep:
+    dir: outputs/${hydra.job.name}/${now:%Y-%m-%d_%H-%M-%S}
+    subdir: version_${hydra.job.num}

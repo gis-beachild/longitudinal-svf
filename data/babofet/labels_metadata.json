@@ -1,0 +1,26 @@
+{
+  "num_classes": 20,
+  "CortexIndex": [3, 4],
+  "class_labels": [
+    "background",
+    "CSF_left",
+    "CSF_right",
+    "cortex_left",
+    "cortex_right",
+    "white_matter_left",
+    "white_matter_right",
+    "ventricles_left",
+    "ventricles_right",
+    "Cavum_septum_pellucidum",
+    "Brainstem",
+    "Cerebellum_Left",
+    "Cerebellum_Right",
+    "Cerebellar_Vermis",
+    "Basal_Ganglia_Left",
+    "Basal_Ganglia_Right",
+    "Thalamus_Left",
+    "Thalamus_Right",
+    "ThirdVentricle",
+    "FourthVentricle"
+  ]
+}

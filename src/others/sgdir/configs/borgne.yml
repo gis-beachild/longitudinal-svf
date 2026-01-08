@@ -1,0 +1,32 @@
+# data
+name: 'dhcp'
+path: '/home/florian/Documents/Programs/Hint-Registration/OLD/Others/SGDIR/sample_data/borgne'
+crop_x: 128
+crop_y: 128
+crop_z: 128
+num_classes: 5
+# network configs
+loss_type: 'ncc'
+down_channels: [32, 64, 128, 128, 256]
+up_channels: [256, 128, 128, 64, 32]
+time_emb_dim: 64
+decoder_only: true
+
+# training configs
+batch_size: 1
+res_levels: 8
+ss_lr: 1e-4
+ss_epochs: 500
+ss_eval_interval: 1
+checkpoints_path: 'checkpoints/borgne_noemb_old.pt'
+logdir: 'logs/borgne_noemb.log'
+
+# loss factors
+image_loss_coeff: 1.
+ss_loss_coeff: 1e4
+
+# evaluation configs
+down_factor: 2
+save_evals: true
+save_evals_path: 'evals/borgne_noemb_old'
+eval_logdir: 'logs/borgne_noemb_eval.log'

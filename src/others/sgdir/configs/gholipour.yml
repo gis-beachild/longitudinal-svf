@@ -1,0 +1,32 @@
+# data
+name: 'dhcp'
+path: '/home/florian/Documents/Programs/Hint-Registration/OLD/Others/SGDIR/sample_data/gholipour/'
+crop_x: 160
+crop_y: 192
+crop_z: 160
+
+# network configs
+loss_type: 'mse'
+down_channels: [32, 64, 128, 128, 256]
+up_channels: [256, 128, 128, 64, 32]
+time_emb_dim: 64
+decoder_only: false
+
+# training configs
+batch_size: 1
+res_levels: 8
+ss_lr: 1e-4
+ss_epochs: 500
+ss_eval_interval: 1
+checkpoints_path: 'checkpoints/gholipour_noemb.pt'
+logdir: 'logs/gholipour_noemb.log'
+
+# loss factors
+image_loss_coeff: 1.
+ss_loss_coeff: 1e5
+
+# evaluation configs
+down_factor: 2
+save_evals: true
+save_evals_path: 'evals/gholipour_noemb'
+eval_logdir: 'logs/gholipour_noemb_eval.log'

@@ -1,0 +1,25 @@
+{
+  "num_classes": 19,
+  "CortexIndex": [2],
+  "class_labels": [
+    "background",
+    "CSF",
+    "Cortex",
+    "WhiteMatter",
+    "Lat_Ventricles",
+    "Brainstem",
+    "Cerebellum",
+    "Thalamus",
+    "Thrid_Ventricle",
+    "Fourth_Ventricle",
+    "Cavum",
+    "Gang_Eminens",
+    "Hippocampus",
+    "Amygdala",
+    "Caudate",
+    "Lentiform_Nucleus",
+    "Corpus_Callosum",
+    "Vermis",
+    "Internal_Capsule"
+  ]
+}

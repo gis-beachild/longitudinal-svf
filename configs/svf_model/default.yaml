@@ -1,0 +1,11 @@
+_target_: registration_svf.registration.RegistrationModule
+int_steps: 9
+model:
+  _target_: monai.networks.nets.AttentionUnet
+  dropout: 0.1
+  spatial_dims: 3
+  in_channels: 2
+  out_channels: 3
+  channels: [32, 64, 128, 256]
+  strides: [2, 2, 2]
+  load: ""

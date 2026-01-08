@@ -1,0 +1,73 @@
+data:
+  csv_path: /home/florian/Documents/Programs/longitudinal-svf-pair/dataset/AtlasImages/dataset.csv
+  t0: 0
+  t1: 6
+  batch_size: 1
+  num_workers: 8
+  csize:
+  - 128
+  - 160
+  - 128
+  rsize:
+  - 128
+  - 160
+  - 128
+  num_classes: 11
+  date_format: null
+  name: atlasimages
+  label_metadata: /home/florian/Documents/Programs/longitudinal-svf-pair/dataset/AtlasImages/labels_metadata.json
+svf_model:
+  _target_: modules.registration.RegistrationModule
+  int_steps: 9
+  model:
+    _target_: src.modules.blocks.unet.DyNUnet
+    dropout: 0.1
+    in_channels: 2
+    out_channels: 3
+    kernel_size:
+    - - 3
+      - 3
+      - 3
+    - - 3
+      - 3
+      - 3
+    - - 3
+      - 3
+      - 3
+    - - 3
+      - 3
+      - 3
+    - - 3
+      - 3
+      - 3
+    strides:
+    - - 2
+      - 2
+      - 2
+    - - 2
+      - 2
+      - 2
+    - - 2
+      - 2
+      - 2
+    - - 2
+      - 2
+      - 2
+    - - 2
+      - 2
+      - 2
+train:
+  max_steps: 100000
+  accumulate_grad_batches: 1
+  lambda_sim: 0.0
+  lambda_seg: 1.0
+  lambda_reg: 100
+  learning_rate: 0.0001
+  tensor_cores: false
+  batch_size: 1
+  checkpoint: ''
+  penalize: v
+  save_dir: pairwise
+  mode: pairwise
+  sim_loss: mi
+  load: ''

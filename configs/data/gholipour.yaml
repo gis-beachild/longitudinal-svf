@@ -1,0 +1,11 @@
+defaults:
+  - generic
+name: 'gholipour'
+csv_path: /home/florian/Documents/Programs/longitudinal-svf/dataset/Gholipour/dataset.csv
+label_metadata: /home/florian/Documents/Programs/longitudinal-svf/dataset/Gholipour/labels_metadata.json
+t0: 0
+t1: 16
+csize: [ 160, 192, 160 ]
+rsize: [ 160, 192, 160  ]
+num_classes: 20
+date_format: null

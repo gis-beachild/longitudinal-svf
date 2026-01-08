@@ -1,0 +1,18 @@
+defaults:
+    # General settings
+    - generic_longitudinal
+module:
+    _target_: train_longitudinal.LongitudinalTrainingModule
+    num_inter_by_epoch: 6
+max_steps: 15000
+accumulate_grad_batches: 1
+sim_loss: "mi"
+lambda_reg: 100
+lambda_sim: 0.0
+lambda_seg: 1.0
+learning_rate: 0.001
+save_dir: 'longitudinal/linear'
+batch_size: 1
+checkpoint: ""
+load: ""
+time_mode: "linear"
