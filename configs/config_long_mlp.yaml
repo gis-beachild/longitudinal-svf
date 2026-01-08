@@ -1,7 +1,7 @@
 defaults:
-  - data: atlasimages
+  - data: macaque
   - svf_model: dyn_unet_dual
-  - train_long: atlas_mlp
+  - train_long: macaque_mlp
 hydra:
   job:
     name: longitudinal

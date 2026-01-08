@@ -1,7 +1,7 @@
 defaults:
-  - data: atlasimages
+  - data: macaque
   - svf_model: dyn_unet_dual
-  - train_pair: atlasimages
+  - train_pair: macaque
 
 hydra:
   job:

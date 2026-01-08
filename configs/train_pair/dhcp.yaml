@@ -13,7 +13,6 @@ learning_rate: 0.005
 tensor_cores: false
 batch_size: 1
 checkpoint: ""
-penalize: "v"
 save_dir: 'pairwise'
 load: ''
 
