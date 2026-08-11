@@ -1,0 +1,8 @@
+accumulate_grad_batches: 1
+sim_loss: "mi"
+checkpoint: ""
+load_svf: ""
+load_model: ""
+batch_size: 1
+# Only used when time_mode == "mlp"; sanity-check against your dataset before relying on it.
+learning_rate_mlp: 0.0001

@@ -14,7 +14,7 @@ tensor_cores: false
 batch_size: 1
 checkpoint: ""
 save_dir: 'pairwise'
-load: '/home/florian/Documents/Programs/longitudinal-svf-pair/src/outputs/pairwise/2025-09-02_21-13-46/last_model.pth'
+load: ''
 
 
 

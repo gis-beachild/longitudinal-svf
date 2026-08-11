@@ -1,0 +1,9 @@
+defaults:
+  - data: gholipour
+  - pairwise_model: default
+  - longitudinal_model: linear
+  - train: longitudinal/dhcp_linear
+
+hydra:
+  job:
+    name: longitudinal

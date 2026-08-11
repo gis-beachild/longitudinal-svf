@@ -1,0 +1,6 @@
+defaults:
+  - default
+mode: "inr"
+hidden_dim: [64, 64, 64]
+max_freq: 4
+

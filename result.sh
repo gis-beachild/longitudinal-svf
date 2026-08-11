@@ -1,6 +1,6 @@
 #!/bin/bash
 
-DATASET="macaque"
+DATASET="gholipour"
 SAVE_PATH="./results"
 ANTS=false
 UNIGRAD=false
@@ -8,20 +8,14 @@ SGDIR=false
 NODER=false
 HH=false
 SVF_PAIR=false
-SVF_INT=false
 SVF_LIN=false
 SVF_MLP=false
 
 
-while getopts "ausnvilmd:" opt; do
+while getopts "gausnhvlmd:" opt; do
   case $opt in
-    a) ANTS=true ;;
-    u) UNIGRAD=true ;;
-    s) SGDIR=true;;
-    n) NODER=true ;;
-    h) HH=true;;
+    g) GT=true ;;
     v) SVF_PAIR=true ;;
-    i) SVF_INT=true ;;
     l) SVF_LIN=true ;;
     m) SVF_MLP=true ;;
     d) DATASET="$OPTARG" ;;
@@ -29,58 +23,31 @@ while getopts "ausnvilmd:" opt; do
   esac
 done
 
+CURRENT_DIR="$(pwd)"
 
-if [["$DATASET" == "macaque"]]; then
-  CONFIG_HYDRA="data/macaque.yaml"
-elif [["$DATASET" == "dhcp"]]; then
-  CONFIG_HYDRA="data/dhcp.yaml"
-elif [["$DATASET" == "ferret"]]; then
-  CONFIG_HYDRA="data/ferret.yaml"
-elif [["$DATASET" == "gholipour"]]; then
-  CONFIG_HYDRA="data/gholipour.yaml"
-else
-    echo "Error: unknown dataset '$DATASET'" >&2
-    exit 1
+case "$DATASET" in
+    "macaque"|"dhcp"|"ferret"|"gholipour")
+        CONFIG_HYDRA="$CURRENT_DIR/configs/data/${DATASET}.yaml"
+        ;;
+    *)
+        echo "Error: unknown dataset '$DATASET'" >&2
+        exit 1
+        ;;
+esac
+NORMALIZED_PATH="./results/$DATASET/gt/gi.csv"
+echo $CONFIG_HYDRA
+if [ "$GT" = true ]; then
+    python ./src/result_script.py --dataset_yaml $CONFIG_HYDRA  --pred $SAVE_PATH/$DATASET/gt/ --rotate 90
 fi
 
-NORMALIZED_PATH="./results/$DATASET/GT/gi.csv"
-
-if [[ "GT" == true ]]; then
-    python ./utils/result_script.py --savePath $SAVE_PATH --dataset_yaml $DATASET  --pred /result/$DATASET/gt/ --rotate 90
+if [ "$SVF_PAIR" = true ]; then
+    python ./src/result_script.py  --dataset_yaml $CONFIG_HYDRA --pred $SAVE_PATH/$DATASET/pairwise/ --rotate 90  --gi_normalized $NORMALIZED_PATH
 fi
 
-if [[ "$ANTS" == true ]]; then
-    python ./utils/result_script.py --savePath $SAVE_PATH --dataset_yaml $DATASET --pred ./result/$DATASET/ants/ --rotate 90  --gi_normalized $NORMALIZED_PATH
+if [ "$SVF_LIN" = true ]; then
+    python ./src/result_script.py --dataset_yaml $CONFIG_HYDRA --pred $SAVE_PATH/$DATASET/longitudinal_linear/ --rotate 90  --gi_normalized $NORMALIZED_PATH
 fi
 
-if [[ "$UNIGRAD" == true ]]; then
-    python ./utils/result_script.py --savePath $SAVE_PATH --dataset_yaml $DATASET --pred ./result/$DATASET/ui/ --rotate 90  --gi_normalized $NORMALIZED_PATH
-fi
-
-if [[ "$SGDIR" == true ]]; then
-    python ./utils/result_script.py --savePath $SAVE_PATH --dataset_yaml $DATASET --pred ./result/$DATASET/sgdir/ --rotate 90  --gi_normalized $NORMALIZED_PATH
-fi
-
-if [[ "$NODER" == true ]]; then
-    python ./utils/result_script.py --savePath $SAVE_PATH --dataset_yaml $DATASET --pred ./result/$DATASET/noder/ --rotate 90  --gi_normalized $NORMALIZED_PATH
-fi
-
-if [[ "$HH" == true ]]; then
-    python ./utils/result_script.py --savePath $SAVE_PATH --dataset_yaml $DATASET --pred ./result/$DATASET/hh/ --rotate 90  --gi_normalized $NORMALIZED_PATH
-fi
-
-if [[ "$SVF_PAIR" == true ]]; then
-    python ./utils/result_script.py --savePath $SAVE_PATH --dataset_yaml $DATASET --pred ./result/$DATASET/svf_pair/ --rotate 90  --gi_normalized $NORMALIZED_PATH
-fi
-
-if [[ "$SVF_INT" == true ]]; then
-    python ./utils/result_script.py --savePath $SAVE_PATH --dataset_yaml $DATASET --pred ./result/$DATASET/svf_int/ --rotate 90  --gi_normalized $NORMALIZED_PATH
-fi
-
-if [[ "$SVF_LIN" == true ]]; then
-    python ./utils/result_script.py --savePath $SAVE_PATH --dataset_yaml $DATASET --pred ./result/$DATASET/svf_linear/ --rotate 90  --gi_normalized $NORMALIZED_PATH
-fi
-
-if [[ "$SVF_MLP" == true ]]; then
-    python ./utils/result_script.py --savePath $SAVE_PATH --dataset_yaml $DATASET --pred ./result/$DATASET/svf_mlp/ --rotate 90  --gi_normalized $NORMALIZED_PATH
+if [ "$SVF_MLP" = true ]; then
+    python ./src/result_script.py  --dataset_yaml $CONFIG_HYDRA --pred $SAVE_PATH/$DATASET/longitudinal_mlp/ --rotate 90  --gi_normalized $NORMALIZED_PATH
 fi
