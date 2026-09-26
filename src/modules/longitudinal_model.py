@@ -4,7 +4,7 @@ Author: Fl0rian
 """
 import os
 
-from src.modules.svf_registration import RegistrationModule
+from src.modules.svf_registration import SVFRegistrationModule
 import torch
 import torch.nn as nn
 
@@ -14,7 +14,7 @@ from modules.monotonic_mlp import MonotonicMLP
 class LongitudinalDeformation(nn.Module):
     """Wraps a stationary-velocity-field registration model with a per-subject time encoding (linear or monotonic MLP)."""
 
-    def __init__(self, svf_model : RegistrationModule, time_mode: str, t0: int, t1: int) -> None:
+    def __init__(self, svf_model : SVFRegistrationModule, time_mode: str, t0: int, t1: int) -> None:
         '''
         Our longitudinal deformation model
         :param svf_model: Registration model

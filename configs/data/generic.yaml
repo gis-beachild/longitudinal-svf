@@ -1,4 +1,9 @@
 csv_path: null
+root_dir: .
+train_json: null
+val_json: null
+merge_labels_0_1: false
+augmentation: false
 label_metadata: null
 t0: null
 t1: null

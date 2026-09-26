@@ -16,7 +16,7 @@ from omegaconf import DictConfig, OmegaConf
 from hydra.core.hydra_config import HydraConfig
 
 from data.pairwise_datamodule import PairwiseRegistrationDataModule
-from data.longitudinal_datamodule import LongitudinalDataModule
+from data.longitudinal_datamodule import SpatioTemporalSequenceDatamoduleJSON
 from training_module_pairwise import RegistrationTrainingModule
 from training_module_longitudinal import LongitudinalTrainingModule
 from src.modules.longitudinal_model import LongitudinalDeformation
@@ -34,6 +34,7 @@ def main(cfg: DictConfig) -> None:
     save_dir = f'./results/{cfg.data.name}/{cfg.mode}/'
     os.makedirs(save_dir, exist_ok=True)
     sub_save_dir = os.path.join(save_dir, os.path.basename(HydraConfig.get().runtime.output_dir))
+    os.makedirs(sub_save_dir, exist_ok=True)
     tensorboard_logger = pl.loggers.TensorBoardLogger(save_dir=os.path.join(save_dir, 'log'), name=None, version='') # type: ignore
     svf_model: SVFRegistrationModule = hydra.utils.instantiate(cfg.svf_model)
 
@@ -57,16 +58,20 @@ def main(cfg: DictConfig) -> None:
         max_steps = cfg.train_pair.max_steps
         checkpoint = cfg.train_pair.checkpoint
     else:  # "longitudinal_linear" or "longitudinal_mlp"
-        datamodule: pl.LightningDataModule = LongitudinalDataModule(
-            data_dir=cfg.data.csv_path,
+        if not cfg.data.get("train_json") or not cfg.data.get("val_json"):
+            raise ValueError("Longitudinal training requires data.train_json and data.val_json manifests")
+        datamodule = SpatioTemporalSequenceDatamoduleJSON(
+            root_dir=cfg.data.root_dir,
+            json_path=cfg.data.train_json,
+            json_path_val=cfg.data.val_json,
             batch_size=cfg.data.batch_size,
-            rsize=cfg.data.rsize,
-            csize=cfg.data.csize,
+            size=cfg.data.rsize,
+            crop=cfg.data.csize,
             t0=cfg.data.t0,
-            t1=cfg.data.t1,
+            tn=cfg.data.t1,
             num_workers=cfg.data.num_workers,
-            date_format=cfg.data.date_format,
-            num_classes=cfg.data.num_classes)
+            merge_labels_0_1=cfg.data.merge_labels_0_1,
+            augmentation=cfg.data.augmentation)
         if cfg.train_long.load_svf != "":
             svf_model.load_state_dict(torch.load(cfg.train_long.load_svf))
         model: LongitudinalDeformation = LongitudinalDeformation(

@@ -1,119 +1,253 @@
-"""PyTorch Lightning DataModule for longitudinal registration, driving the merged train.py/predict.py pipeline.
-
-Author: Fl0rian
 """
+PyTorch Lightning data module for spatio-temporal longitudinal brain MRI.
+
+Reads train and validation subject lists from JSON manifests, normalises
+acquisition ages to the ``[0, 1]`` interval defined by ``[t0, tn]``, sorts
+sessions chronologically, and exposes standard Lightning DataLoader hooks.
+
+JSON manifest format
+--------------------
+Each JSON file must follow the structure::
+
+    {
+        "subjects": [
+            {
+                "sessions": [
+                    {
+                        "image": "relative/path/to/image.nii.gz",
+                        "segmentation": "relative/path/to/seg.nii.gz",
+                        "age": 85.0
+                    },
+                    ...
+                ]
+            },
+            ...
+        ]
+    }
+
+All image paths are interpreted relative to ``root_dir``.
+
+Author : Florian Scalvini
+"""
+
+# --- Standard library ---
+import os
+import glob
+import json
+import random
+
+# --- Third-party ---
+import torch
 import pandas as pd
 import torchio as tio
 import pytorch_lightning as pl
-from torchvision import transforms
-from datetime import datetime
-from longitudinal_dataset import LongitudinalDatasetValidation, LongitudinalDataset
+
+# --- Local ---
+from .longitudinal_dataset import SpatioTemporalDatasetValidation, SpatioTemporalDataset
 
 
-class LongitudinalDataModule(pl.LightningDataModule):
-    def __init__(self,
-                 data_dir: str,
-                 t0: int,
-                 t1: int,
-                 rsize: int | tuple[int, int, int],
-                 csize: int | tuple[int, int, int],
-                 batch_size: int = 1,
-                 num_workers: int = 8,
-                 num_classes: int = 20,
-                 date_format: str | None = None,
-                 seed: int = 42) -> None:
-        """
-        Data module for longitudinal registration task.
-        :param data_dir: Path to the CSV file containing image and label paths.
-        :param t0: Time point 0.
-        :param t1: Time point 1.
-        :param rsize: Resize the image to this size.
-        :param csize: Crop or pad the image to this size before resizing.
-        :param batch_size: Batch size for training.
-        :param num_workers: Number of workers for data loading.
-        :param num_classes: Number of classes for segmentation.
-        """
+def split_and_shuffled(
+    lst: list,
+    ratio: float,
+    seed: int | None = None,
+) -> tuple[list, list]:
+    """Randomly split *lst* into two parts according to *ratio*.
+
+    Parameters
+    ----------
+    lst : list
+        The sequence to split.  The original list is not modified.
+    ratio : float
+        Fraction of elements placed in the first partition (``0 < ratio < 1``).
+    seed : int or None
+        Optional random seed for reproducibility.
+
+    Returns
+    -------
+    first : list
+        First ``floor(len(lst) * ratio)`` elements after shuffling.
+    second : list
+        Remaining elements.
+    """
+    lst_copy = lst.copy()  # avoid modifying original list
+    if seed is not None:
+        random.seed(seed)  # for reproducibility
+    random.shuffle(lst_copy)
+    split_idx = int(len(lst_copy) * ratio)
+    return lst_copy[:split_idx], lst_copy[split_idx:]
+
+
+class SpatioTemporalSequenceDatamoduleJSON(pl.LightningDataModule):
+    """Lightning data module for longitudinal brain MRI sequences.
+
+    Parses two JSON manifests (train / validation), normalises ages, builds
+    :class:`~dataloader.dataset.SpatioTemporalDataset` and
+    :class:`~dataloader.dataset.SpatioTemporalDatasetValidation` instances on
+    demand, and returns single-sample DataLoaders configured for low-memory
+    3-D volume loading.
+
+    Parameters
+    ----------
+    root_dir : str
+        Absolute path prepended to all relative image paths in the JSON files.
+    json_path : str
+        Path to the training manifest JSON, relative to *root_dir*.
+    json_path_val : str
+        Path to the validation manifest JSON, relative to *root_dir*.
+    batch_size : int
+        Batch size forwarded to the Lightning trainer (stored but DataLoaders
+        always use ``batch_size=1`` for memory reasons).
+    seed : int
+        Random seed used by :func:`split_and_shuffled`.
+    num_workers : int
+        Number of DataLoader worker processes.
+    t0 : float
+        Age at the start of the developmental window — maps to ``0``.
+    tn : float
+        Age at the end of the developmental window — maps to ``1``.
+    size : tuple of int
+        Target spatial dimensions ``(D, H, W)`` after resizing.
+    crop : tuple of int
+        Crop/pad target ``(D, H, W)`` applied before resizing.
+    merge_labels_0_1 : bool
+        Merge labels 0 and 1 and shift higher labels down by one.
+    augmentation : bool or tio.Transform or None
+        Enable sequence augmentation for training only, or supply a transform.
+    """
+
+    def __init__(
+        self,
+        root_dir: str,
+        json_path: str,
+        json_path_val: str,
+        batch_size: int,
+        seed: int = 42,
+        num_workers: int = 4,
+        t0: float = 0,
+        tn: float = 1,
+        size: tuple[int, int, int] = (192, 224, 192),
+        crop: tuple[int, int, int] = (50, 50, 50),
+        merge_labels_0_1: bool = False,
+        augmentation: bool | tio.Transform | None = False,
+    ) -> None:
         super().__init__()
-        self.data_dir = data_dir
-        self.t0 = t0
-        self.t1 = t1
+        if tn <= t0:
+            raise ValueError("tn must be greater than t0")
+        self.root_dir = root_dir
+        if batch_size != 1:
+            raise ValueError(
+                "longitudinal sequences have variable lengths; batch_size must be 1"
+            )
+        self.json_path = os.path.join(root_dir, json_path)
+        self.json_path_val = os.path.join(root_dir, json_path_val)
         self.batch_size = batch_size
         self.num_workers = num_workers
-        self.rsize = rsize
-        self.csize = csize
-        self.train_subjects = None
-        self.val_subjects = None
         self.test_subjects = None
         self.seed = seed
-        self.num_classes = num_classes
-        self.date_format = date_format
-
-
-    def prepare_data(self) -> None:
-        """Download or prepare data (if needed)."""
-        pass
-
-    def _get_subjects(self) -> list:
-        """Load subjects from the CSV and normalize each subject's age to [0, 1] against ``t0``/``t1``."""
-        subjects = []
-        reference_date = None
-        df = pd.read_csv(self.data_dir)
-        for index, row in df.iterrows():
-            if tio.ScalarImage(row['label']).data.shape[0] > 1:
-                subject = tio.Subject(
-                    image=tio.ScalarImage(row['image']),
-                    label=tio.ScalarImage(row['label']),
-                    string_age=str(row['age'])
-                )
-            else:
-                subject = tio.Subject(
-                    image=tio.ScalarImage(row['image']),
-                    label=tio.LabelMap(row['label']),
-                    string_age=str(row['age'])
-                )
-            subjects.append(subject)
-
-        reference_date_t0 = datetime.strptime(subjects[self.t0]['string_age'], self.date_format).timestamp() if self.date_format else float(
-            subjects[self.t0]['string_age'])
-        reference_date_t1 = datetime.strptime(subjects[self.t1]['string_age'], self.date_format).timestamp() if self.date_format else float(
-            subjects[self.t1]['string_age'])
-        for i in range(len(subjects)):
-            age = datetime.strptime(subjects[i]['string_age'], self.date_format).timestamp() if self.date_format else float(
-                subjects[i]['string_age'])
-            subjects[i]['age'] = (float(age) - float(reference_date_t0)) / float(reference_date_t1 - reference_date_t0)
-
-        return subjects
-
-
-    def train_dataloader(self) -> tio.SubjectsLoader:
-        transform = tio.transforms.Compose([
-            tio.transforms.CropOrPad(self.csize),
-            tio.transforms.Resize(self.rsize),
-            tio.transforms.RescaleIntensity(percentiles=(0.1, 99.9), include=['image']),
-            tio.transforms.Clamp(out_min=0, out_max=1, include=['image']),
-            tio.transforms.OneHot(self.num_classes)
+        self.size = size
+        self.crop = crop
+        self.merge_labels_0_1 = merge_labels_0_1
+        self.augmentation = augmentation
+        self.transform = tio.transforms.Compose([
+            tio.transforms.CropOrPad(crop),
+            tio.transforms.Resize(size),
+            tio.transforms.RescaleIntensity(out_min_max=(0, 1), percentiles=(0.05, 99.5)),
         ])
-        train_dataset =  LongitudinalDatasetValidation(self._get_subjects(), transform=transform)
-        return tio.SubjectsLoader(train_dataset, batch_size=self.batch_size, num_workers=self.num_workers, shuffle=True)
-
-    def val_dataloader(self) -> tio.SubjectsLoader:
-        transform = tio.transforms.Compose([
-            tio.transforms.CropOrPad(self.csize),
-            tio.transforms.Resize(self.rsize),
-            tio.transforms.RescaleIntensity(percentiles=(0.1, 99.9), include=['image']),
-            tio.transforms.Clamp(out_min=0, out_max=1, include=['image']),
-            tio.transforms.OneHot(self.num_classes)
+        self.transform_seg = tio.transforms.Compose([
+            tio.transforms.CropOrPad(crop),
+            tio.transforms.Resize(size),
         ])
-        val_dataset = LongitudinalDatasetValidation(self._get_subjects(), transform=transform)
-        return tio.SubjectsLoader(val_dataset, batch_size=self.batch_size, num_workers=self.num_workers)
+        self.data_train: list = []
+        self.data_val: list = []
 
-    def test_dataloader(self) -> tio.SubjectsLoader:
-        transform = tio.transforms.Compose([
-            tio.transforms.CropOrPad(self.csize),
-            tio.transforms.Resize(self.rsize),
-            tio.transforms.RescaleIntensity(percentiles=(0.1, 99.9), include=['image']),
-            tio.transforms.Clamp(out_min=0, out_max=1, include=['image']),
-            tio.transforms.OneHot(self.num_classes)
-        ])
-        test_dataset = LongitudinalDatasetValidation(self._get_subjects(), transform=transform)
-        return tio.SubjectsLoader(test_dataset, batch_size=self.batch_size, num_workers=self.num_workers)
+        with open(self.json_path, 'r') as f:
+            # Parsing the JSON file into a Python dictionary
+            data = json.load(f)
+
+        for i in range(len(data['subjects'])):
+            subject = []
+            for j in range(len(data['subjects'][i]['sessions'])):
+                segmentation = data['subjects'][i]['sessions'][j].get('segmentation')
+                session = [
+                    os.path.join(root_dir, data['subjects'][i]['sessions'][j]['image']),
+                    os.path.join(root_dir, segmentation) if segmentation else None,
+                    data['subjects'][i]['sessions'][j]['age'],
+                ]
+                subject.append(session)
+
+            subject.sort(key=lambda session: session[2])
+            for j in range(len(subject)):
+                subject[j][2] = (subject[j][2] - t0) / (tn - t0)
+            if len(subject) >= 2:
+                self.data_train.append(subject)
+
+        with open(self.json_path_val, 'r') as f:
+            # Parsing the JSON file into a Python dictionary
+            data = json.load(f)
+        for i in range(len(data['subjects'])):
+            subject = []
+            for j in range(len(data['subjects'][i]['sessions'])):
+                segmentation = data['subjects'][i]['sessions'][j].get('segmentation')
+                session = [
+                    os.path.join(root_dir, data['subjects'][i]['sessions'][j]['image']),
+                    os.path.join(root_dir, segmentation) if segmentation else None,
+                    data['subjects'][i]['sessions'][j]['age'],
+                ]
+                subject.append(session)
+
+            subject.sort(key=lambda session: session[2])
+            for j in range(len(subject)):
+                subject[j][2] = (subject[j][2] - t0) / (tn - t0)
+            if len(subject) >= 2:
+                self.data_val.append(subject)
+
+        if not self.data_train:
+            raise ValueError("the training manifest contains no sequence with at least 2 sessions")
+        if not self.data_val:
+            raise ValueError("the validation manifest contains no sequence with at least 2 sessions")
+
+    def _loader_kwargs(self, *, shuffle: bool, pin_memory: bool) -> dict:
+        """Build DataLoader options shared by arbitrary numbers of sequences."""
+        options = {
+            "batch_size": 1,
+            "num_workers": self.num_workers,
+            "shuffle": shuffle,
+            "pin_memory": pin_memory,
+            "persistent_workers": self.num_workers > 0,
+            "drop_last": False,
+        }
+        if self.num_workers > 0:
+            options["prefetch_factor"] = 1
+        return options
+
+    def train_dataloader(self) -> torch.utils.data.DataLoader:
+        """Return a shuffled DataLoader over the training subjects."""
+        dataset = SpatioTemporalDataset(
+            self.data_train,
+            self.transform,
+            augmentation=self.augmentation,
+            merge_labels_0_1=self.merge_labels_0_1,
+        )
+        return torch.utils.data.DataLoader(
+            dataset=dataset, **self._loader_kwargs(shuffle=True, pin_memory=True)
+        )
+
+    def val_dataloader(self) -> torch.utils.data.DataLoader:
+        """Return an ordered DataLoader over the validation subjects."""
+        dataset = SpatioTemporalDatasetValidation(
+            self.data_val, self.transform, self.transform_seg,
+            merge_labels_0_1=self.merge_labels_0_1,
+        )
+        return torch.utils.data.DataLoader(
+            dataset=dataset, **self._loader_kwargs(shuffle=False, pin_memory=False)
+        )
+
+    def test_dataloader(self) -> torch.utils.data.DataLoader:
+        """Return an ordered DataLoader over the validation subjects for testing."""
+        dataset = SpatioTemporalDatasetValidation(
+            self.data_val, self.transform, self.transform_seg,
+            merge_labels_0_1=self.merge_labels_0_1,
+        )
+        return torch.utils.data.DataLoader(
+            dataset=dataset, **self._loader_kwargs(shuffle=False, pin_memory=False)
+        )
