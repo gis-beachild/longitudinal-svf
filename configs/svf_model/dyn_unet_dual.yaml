@@ -1,7 +1,7 @@
-_target_: registration_svf.registration.RegistrationModule
+_target_: src.modules.svf_registration.SVFRegistrationModule
 int_steps: 9
 model:
-  _target_: registration_svf.modules.unet.DyNUnet
+  _target_: src.modules.unet.DyNUnet
   dropout: 0.1
   in_channels: 2
   out_channels: 3

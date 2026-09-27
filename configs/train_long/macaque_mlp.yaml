@@ -1,6 +1,7 @@
 defaults:
     # General settings
     - generic_longitudinal
+    - _self_
 
 num_inter_by_epoch: 7
 max_steps: 15000

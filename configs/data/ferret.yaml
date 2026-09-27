@@ -1,5 +1,6 @@
 defaults:
   - generic
+  - _self_
 name: 'ferret'
 csv_path: ./data/Ferret/dataset.csv
 label_metadata: ./data/Ferret/labels_metadata.json

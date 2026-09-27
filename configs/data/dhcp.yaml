@@ -1,5 +1,6 @@
 defaults:
   - generic
+  - _self_
 name: 'dhcp'
 csv_path: ./data/dHCP/dataset.csv
 label_metadata: ./data/dHCP/labels_metadata.json

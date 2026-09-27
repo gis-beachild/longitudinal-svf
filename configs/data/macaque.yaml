@@ -1,5 +1,6 @@
 defaults:
   - generic
+  - _self_
 name: 'macaque'
 csv_path: ./data/Macaque/dataset.csv
 label_metadata: ./data/Macaque/labels_metadata.json

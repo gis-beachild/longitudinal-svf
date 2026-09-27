@@ -1,5 +1,6 @@
 # @package _global_
 defaults:
   - /train_long: dhcp_mlp
+  - _self_
 
 mode: longitudinal_mlp

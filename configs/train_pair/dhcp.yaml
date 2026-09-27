@@ -1,6 +1,7 @@
 defaults:
     # General settings
     - generic_pairwise
+    - _self_
 
 mode: 'pairwise'
 max_steps: 15000

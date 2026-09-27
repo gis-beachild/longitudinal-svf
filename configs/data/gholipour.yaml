@@ -1,5 +1,6 @@
 defaults:
   - generic
+  - _self_
 name: 'gholipour'
 csv_path: /home/florian/PycharmProjects/longitudinal-svf/data/Gholipour/dataset.csv
 label_metadata: /home/florian/PycharmProjects/longitudinal-svf/data/Gholipour/labels_metadata.json

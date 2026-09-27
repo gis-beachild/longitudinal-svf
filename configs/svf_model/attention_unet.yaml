@@ -1,4 +1,4 @@
-_target_: modules.registration.RegistrationModule
+_target_: src.modules.svf_registration.SVFRegistrationModule
 int_steps: 9
 model:
   _target_: monai.networks.nets.AttentionUnet
