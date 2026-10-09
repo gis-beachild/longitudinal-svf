@@ -11,18 +11,23 @@
 
 # isort: dont-add-import: from __future__ import annotations
 
-from typing import List, Optional, Sequence, Tuple, Union
+"""Experimental DynUNet variants augmented with DualDomainNet attention and a time-conditioned transformer head.
+
+Author: Fl0rian
+"""
+
+from typing import Optional, Sequence, Tuple, Union
 
 import torch
 import torch.nn as nn
-from torch.nn.functional import interpolate
-import torch.nn.functional as F
 from monai.networks.blocks.dynunet_block import UnetBasicBlock, UnetOutBlock, UnetResBlock, UnetUpBlock
 from src.modules.blocks.DualDomainNet import DualDomainNet
 import monai
 
 
 class DyNUnet(nn.Module):
+    """DynUNet-style 3D encoder-decoder with DualDomainNet attention gates on select skip connections."""
+
     def __init__(
         self,
         in_channels: int,
@@ -112,7 +117,8 @@ class DyNUnet(nn.Module):
 
         self.apply(self.initialize_weights)
 
-    def forward(self, images):
+    def forward(self, images: torch.Tensor) -> torch.Tensor:
+        """Run the attention-gated encoder-bottleneck-decoder pass on ``images``."""
         skips = [self.input_block(images)]
         for i, down in enumerate(self.down_blocks):
             skips.append(down(skips[-1]))
@@ -123,7 +129,8 @@ class DyNUnet(nn.Module):
         return y
 
 
-    def temp_weight(self, t, encoder_features):
+    def temp_weight(self, t: torch.Tensor, encoder_features: torch.Tensor) -> torch.Tensor:
+        """Predict a per-voxel 3-channel gating weight from a time value and encoder features via a small transformer."""
         B, C_enc, D_enc, H_enc, W_enc = encoder_features.shape  # (B, 320, 8, 8, 8)
         x = encoder_features.flatten(2).permute(0, 2, 1)  # (B, 512, 320)
         x = self.channel_proj(x)  # (B, 512, embedding_dim)
@@ -139,7 +146,8 @@ class DyNUnet(nn.Module):
 
 
     @staticmethod
-    def initialize_weights(module):
+    def initialize_weights(module: nn.Module) -> None:
+        """Apply Kaiming-normal weight init (and zero bias) to conv/transpose-conv layers; used with ``nn.Module.apply``."""
         if isinstance(module, (nn.Conv3d, nn.Conv2d, nn.ConvTranspose3d, nn.ConvTranspose2d)):
             module.weight = nn.init.kaiming_normal_(module.weight, a=0.01)
             if module.bias is not None:
@@ -148,9 +156,10 @@ class DyNUnet(nn.Module):
 
 
 
-
-
 class GlobalTemporalUnet(nn.Module):
+    """DynUNet-style network with DualDomainNet attention on the encoder and a mid-level spatial-feature tap
+    (used for downstream time-conditioned gating) returned alongside the segmentation output."""
+
     def __init__(
         self,
         in_channels: int,
@@ -235,7 +244,13 @@ class GlobalTemporalUnet(nn.Module):
 
         self.apply(self.initialize_weights)
 
-    def forward(self, images):
+    def forward(self, images: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+        """Run the attention-gated encoder-bottleneck-decoder pass.
+
+        Returns:
+            Tuple[torch.Tensor, torch.Tensor]: the segmentation output, and the mid-level
+            encoder feature map (at stage ``self.temp_fm``) used by :meth:`temp_weight`.
+        """
         skips = [self.input_block(images)]
         if not isinstance(self.attention_layers[0], nn.Identity):
             skips[0] = self.attention_layers[0](skips[0]) + skips[0]
@@ -251,7 +266,8 @@ class GlobalTemporalUnet(nn.Module):
         return y, spatial_features
 
 
-    def temp_weight(self, t, encoder_features):
+    def temp_weight(self, t: torch.Tensor, encoder_features: torch.Tensor) -> torch.Tensor:
+        """Predict a per-voxel 3-channel gating weight from a time value and encoder features via a small transformer."""
         B, C_enc, D_enc, H_enc, W_enc = encoder_features.shape  # (B, 320, 8, 8, 8)
         x = encoder_features.flatten(2).permute(0, 2, 1)  # (B, 512, 320)
         x = self.channel_proj(x)  # (B, 512, embedding_dim)
@@ -267,13 +283,14 @@ class GlobalTemporalUnet(nn.Module):
 
 
     @staticmethod
-    def initialize_weights(module):
+    def initialize_weights(module: nn.Module) -> None:
+        """Apply Kaiming-normal weight init (and zero bias) to conv/transpose-conv layers; used with ``nn.Module.apply``."""
         if isinstance(module, (nn.Conv3d, nn.Conv2d, nn.ConvTranspose3d, nn.ConvTranspose2d)):
             module.weight = nn.init.kaiming_normal_(module.weight, a=0.01)
             if module.bias is not None:
                 module.bias = nn.init.constant_(module.bias, 0)
 
-    def velocity2displacement(self, dvf):
+    def velocity2displacement(self, dvf: torch.Tensor) -> torch.Tensor:
         '''
             Convert the velocity field to a flow field
             :param dvf: Velocity field

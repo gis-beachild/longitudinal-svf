@@ -1,0 +1,5 @@
+# @package _global_
+defaults:
+  - /train_long: dhcp_linear
+
+mode: longitudinal_linear

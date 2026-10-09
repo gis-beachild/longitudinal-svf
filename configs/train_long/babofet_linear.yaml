@@ -1,0 +1,11 @@
+defaults:
+  - generic_longitudinal
+
+num_inter_by_epoch: 7
+max_steps: 15000
+lambda_reg: 100
+lambda_sim: 0.0
+lambda_seg: 1.0
+learning_rate_svf: 0.0001
+save_dir: 'longitudinal/linear'
+time_mode: 'linear'

@@ -1,0 +1,15 @@
+defaults:
+  - data: babofet
+  - svf_model: dyn_unet_dual
+  - mode: pairwise
+  - train_pair: babofet
+  - _self_
+
+hydra:
+  job:
+    name: ${mode}
+  run:
+    dir: outputs/${hydra.job.name}/${now:%Y-%m-%d_%H-%M-%S}
+  sweep:
+    dir: outputs/${hydra.job.name}/${now:%Y-%m-%d_%H-%M-%S}
+    subdir: version_${hydra.job.num}

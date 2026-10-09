@@ -1,5 +1,10 @@
+"""3D Structural Similarity Index Measure (SSIM), refactored for volumetric (D, H, W) tensors.
+
+Author: Fl0rian
+"""
 import torch
 import torch.nn as nn
+
 
 class SSIM3d(nn.Module):
     """
@@ -18,6 +23,7 @@ class SSIM3d(nn.Module):
         self.kernel = self.__create_3d_kernel(window_size, self.channels)
 
     def forward(self, img1: torch.Tensor, img2: torch.Tensor) -> torch.Tensor:
+        """Compute the SSIM between ``img1`` and ``img2``, both of shape (B, C, D, H, W)."""
         n_channels = img1.size(1)
 
         if n_channels == self.channels and self.kernel.data.type == img1.data.type:
@@ -33,6 +39,7 @@ class SSIM3d(nn.Module):
         return ssim
 
     def __create_3d_kernel(self, window_size: int, channels: int) -> torch.Tensor:
+        """Build a separable 3D Gaussian convolution kernel of shape (channels, 1, w, w, w)."""
         kernel1d = self.__gaussian(window_size, 1.5).unsqueeze(1)
         kernel2d = torch.mm(kernel1d, kernel1d.t()).unsqueeze(0).unsqueeze(0)
         kernel3d = torch.mm(kernel1d, kernel2d.reshape(1, -1))
@@ -43,6 +50,7 @@ class SSIM3d(nn.Module):
         return kernel
 
     def __gaussian(self, window_size: int, sigma: float) -> torch.Tensor:
+        """Build a normalized 1D Gaussian kernel of length ``window_size``."""
         kernel = torch.Tensor(
             [torch.exp(-(x - torch.tensor(window_size // 2)) ** 2 / (2 * torch.tensor(sigma ** 2))) for x in
              range(window_size)])
@@ -52,6 +60,7 @@ class SSIM3d(nn.Module):
 
     def __ssim(self, img1: torch.Tensor, img2: torch.Tensor, kernel: torch.Tensor,
                kernel_size: int, channels: int, size_average: bool) -> torch.Tensor:
+        """Compute the SSIM map between ``img1`` and ``img2`` given a precomputed Gaussian ``kernel``."""
         mu1 = F.conv3d(img1, kernel, padding=kernel_size // 2, groups=channels)
         mu2 = F.conv3d(img2, kernel, padding=kernel_size // 2, groups=channels)
 

@@ -1,0 +1,11 @@
+defaults:
+  - generic
+name: 'dhcp'
+csv_path: ./data/dHCP/dataset.csv
+label_metadata: ./data/dHCP/labels_metadata.json
+t0: 0
+t1: 15
+num_classes: 20
+date_format: null
+csize: [ 192, 224, 192 ]
+rsize: [ 192, 224, 192 ]

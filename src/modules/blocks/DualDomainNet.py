@@ -1,13 +1,17 @@
+"""Dual-branch (detail + spatial) segmentation head with a BiSeNet-style feature fusion, in 3D.
+
+Author: Fl0rian
+"""
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 import monai.networks.blocks as mn
 
 
 class ConvBNReLU(nn.Module):
+    """3D convolution followed by batch norm and ReLU."""
 
-    def __init__(self, in_chan, out_chan, ks=3, stride=1, padding=1,
-                 dilation=1, groups=1, bias=False):
+    def __init__(self, in_chan: int, out_chan: int, ks: int = 3, stride: int = 1, padding: int = 1,
+                 dilation: int = 1, groups: int = 1, bias: bool = False) -> None:
         super(ConvBNReLU, self).__init__()
         self.conv = nn.Conv3d(
             in_chan, out_chan, kernel_size=ks, stride=stride,
@@ -16,7 +20,7 @@ class ConvBNReLU(nn.Module):
         self.bn = nn.BatchNorm3d(out_chan)
         self.relu = nn.ReLU(inplace=True)
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         feat = self.conv(x)
         feat = self.bn(feat)
         feat = self.relu(feat)
@@ -24,8 +28,9 @@ class ConvBNReLU(nn.Module):
 
 
 class ContentBranch(nn.Module):
+    """Detail branch: a shallow stack of strided convs, truncated according to ``skip``."""
 
-    def __init__(self, in_c, skip):
+    def __init__(self, in_c: int, skip: int) -> None:
         super(ContentBranch, self).__init__()
         self.S1 = nn.Sequential(
             ConvBNReLU(in_c, 32, 3, stride=2),
@@ -48,14 +53,15 @@ class ContentBranch(nn.Module):
             self.S3 if skip < 1 else nn.Identity(),
         )
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         feat = self.branch(x)
         return feat
 
 
 class StemBlock(nn.Module):
+    """Initial downsampling stem: a strided conv followed by a parallel conv/pool fusion."""
 
-    def __init__(self, in_c):
+    def __init__(self, in_c: int) -> None:
         super(StemBlock, self).__init__()
         self.conv = ConvBNReLU(in_c, 16, 3, stride=2)
         self.left = nn.Sequential(
@@ -66,7 +72,7 @@ class StemBlock(nn.Module):
             kernel_size=3, stride=2, padding=1, ceil_mode=False)
         self.fuse = ConvBNReLU(32, 32, 3, stride=1)
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         feat = self.conv(x)
         feat_left = self.left(feat)
         feat_right = self.right(feat)
@@ -76,8 +82,9 @@ class StemBlock(nn.Module):
 
 
 class C2Block(nn.Module):
+    """Inverted-residual block with a stride-1 depthwise expansion and a residual add."""
 
-    def __init__(self, in_chan, out_chan, exp_ratio=6):
+    def __init__(self, in_chan: int, out_chan: int, exp_ratio: int = 6) -> None:
         super(C2Block, self).__init__()
         mid_chan = in_chan * exp_ratio
         self.conv1 = ConvBNReLU(in_chan, in_chan, 3, stride=1)
@@ -97,7 +104,7 @@ class C2Block(nn.Module):
         self.conv2[1].last_bn = True
         self.relu = nn.ReLU(inplace=True)
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         feat = self.conv1(x)
         feat = self.dwconv(feat)
         feat = self.conv2(feat)
@@ -107,8 +114,9 @@ class C2Block(nn.Module):
 
 
 class C1Block(nn.Module):
+    """Inverted-residual block with a stride-2 depthwise expansion and a downsampled shortcut."""
 
-    def __init__(self, in_chan, out_chan, exp_ratio=6):
+    def __init__(self, in_chan: int, out_chan: int, exp_ratio: int = 6) -> None:
         super(C1Block, self).__init__()
         mid_chan = in_chan * exp_ratio
         self.conv1 = ConvBNReLU(in_chan, in_chan, 3, stride=1)
@@ -144,7 +152,7 @@ class C1Block(nn.Module):
         )
         self.relu = nn.ReLU(inplace=True)
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         feat = self.conv1(x)
         feat = self.dwconv1(feat)
         feat = self.dwconv2(feat)
@@ -156,8 +164,9 @@ class C1Block(nn.Module):
 
 
 class SpatialBranch(nn.Module):
+    """Spatial branch: a stem block followed by a stack of C1/C2 blocks, truncated by ``skip``."""
 
-    def __init__(self, in_c, skip):
+    def __init__(self, in_c: int, skip: int) -> None:
         super(SpatialBranch, self).__init__()
         self.S1S2 = StemBlock(in_c)
         self.S3 = nn.Sequential(
@@ -182,14 +191,15 @@ class SpatialBranch(nn.Module):
             self.S5 if skip < 1 else nn.Identity(),
         )
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         feat = self.branch(x)
         return feat
 
 
 class MergeLayer(nn.Module):
+    """Bilateral guided-aggregation layer fusing the detail and spatial branch features."""
 
-    def __init__(self, in_c, skip):
+    def __init__(self, in_c: int, skip: int) -> None:
         super(MergeLayer, self).__init__()
         self.left1 = nn.Sequential(
             nn.Conv3d(
@@ -231,7 +241,8 @@ class MergeLayer(nn.Module):
         )
         self.up = mn.UpSample(3, in_channels=128, out_channels=128, scale_factor=4, kernel_size=3)
 
-    def forward(self, x_d, x_s):
+    def forward(self, x_d: torch.Tensor, x_s: torch.Tensor) -> torch.Tensor:
+        """Fuse detail-branch features ``x_d`` with spatial-branch features ``x_s``."""
         dsize = x_d.size()[2:]
         left1 = self.left1(x_d)
         left2 = self.left2(x_d)
@@ -246,8 +257,9 @@ class MergeLayer(nn.Module):
 
 
 class SegmentHead(nn.Module):
+    """Upsampling segmentation head producing per-voxel class logits."""
 
-    def __init__(self, in_chan, num_classes, skip):
+    def __init__(self, in_chan: int, num_classes: int, skip: int) -> None:
         super(SegmentHead, self).__init__()
         self.conv_out = nn.Conv3d(
             in_chan, num_classes, kernel_size=1, stride=1,
@@ -256,7 +268,7 @@ class SegmentHead(nn.Module):
         self.up = mn.UpSample(3, in_channels=in_chan, out_channels=in_chan, scale_factor=2, kernel_size=3)
         self.skip = skip
 
-    def forward(self, x, size=None):
+    def forward(self, x: torch.Tensor, size=None) -> torch.Tensor:
         feat = x
         for i in range(3 - self.skip):
             feat = self.up(feat)
@@ -266,8 +278,15 @@ class SegmentHead(nn.Module):
 
 
 class DualDomainNet(nn.Module):
+    """Full dual-branch (detail + spatial) segmentation network with BiSeNet-style fusion."""
 
-    def __init__(self, num_classes, in_c, skip=0):
+    def __init__(self, num_classes: int, in_c: int, skip: int = 0) -> None:
+        """
+        Args:
+            num_classes (int): Number of output segmentation classes.
+            in_c (int): Number of input channels.
+            skip (int): How many trailing stages to skip in the detail/spatial branches (0 = full depth).
+        """
         super(DualDomainNet, self).__init__()
         m_in = [128, 64, 32, 16]
         self.detail = ContentBranch(in_c, skip)
@@ -280,7 +299,7 @@ class DualDomainNet(nn.Module):
         self.head = SegmentHead(in_seg, num_classes, skip)
         self.skip = skip
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         size = x.size()[2:]
         feat_d = self.detail(x)
         if self.skip < 3:

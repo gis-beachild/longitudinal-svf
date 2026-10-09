@@ -1,0 +1,9 @@
+_target_: modules.svf_registration.SVFRegistrationModule
+int_steps: 9
+model:
+  _target_: modules.unet.DyNUnet
+  dropout: 0.1
+  in_channels: 2
+  out_channels: 3
+  kernel_size: [[3, 3, 3], [3, 3, 3], [3, 3, 3], [3, 3, 3], [3, 3, 3]]
+  strides: [[2, 2, 2], [2, 2, 2], [2, 2, 2], [2, 2, 2], [2, 2, 2]]

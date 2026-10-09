@@ -1,0 +1,11 @@
+defaults:
+  - generic
+name: 'macaque'
+csv_path: ./data/Macaque/dataset.csv
+label_metadata: ./data/Macaque/labels_metadata.json
+t0: 0
+t1: 6
+csize: [ 128, 160, 128 ]
+rsize: [ 128, 160, 128 ]
+date_format: null
+num_classes: 11

@@ -1,11 +1,19 @@
+"""Simple fully-connected multi-layer perceptron building block.
+
+Author: Fl0rian
+"""
+from typing import List, Optional
+
+import torch
 import torch.nn as nn
 import torch.nn.init as init
+
 
 class MLP(nn.Module):
     '''
         Multi-layer perceptron
     '''
-    def __init__(self, input_dim: int = 1, output_dim: int = 1, hidden_dim=None):
+    def __init__(self, input_dim: int = 1, output_dim: int = 1, hidden_dim: Optional[List[int]] = None) -> None:
         '''
         :param input_dim: int
         :param output_dim: int
@@ -24,11 +32,13 @@ class MLP(nn.Module):
         self.model = nn.Sequential(*layers)
         self._initialize_weights()
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """Apply the MLP to ``x``."""
         y = self.model(x)
         return y
 
-    def _initialize_weights(self):
+    def _initialize_weights(self) -> None:
+        """Kaiming-init all linear layer weights and zero their biases."""
         for layer in self.modules():
             if isinstance(layer, nn.Linear):
                 # Initialize weights using Xavier (Glorot) initialization

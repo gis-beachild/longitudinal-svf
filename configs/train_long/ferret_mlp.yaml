@@ -1,0 +1,12 @@
+defaults:
+    # General settings
+    - generic_longitudinal
+
+num_inter_by_epoch: 6
+max_steps: 15000
+lambda_reg: 100
+lambda_sim: 0.0
+lambda_seg: 1.0
+learning_rate_svf: 0.001
+save_dir: 'longitudinal/mlp'
+time_mode: "mlp"
