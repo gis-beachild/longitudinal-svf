@@ -110,7 +110,7 @@ class LongitudinalTrainingModule(pl.LightningModule):
             if self.lambda_seg > 0:
                 jw_lab = warp(self.reference_labels[0], disp_j)
                 iw_lab = warp(self.reference_labels[1], disp_i)
-                tgt_lab = k["label"].data.to(self.device).unsqueeze(dim=0)
+                tgt_lab = k["label"].data.to(self.device).unsqueeze(dim=0).float()
                 loss += self.lambda_seg * (self.loss_seg(jw_lab, tgt_lab) + self.loss_seg(iw_lab, tgt_lab))
             mlp_opt.zero_grad(set_to_none=True)
             self.manual_backward(loss)
@@ -120,6 +120,7 @@ class LongitudinalTrainingModule(pl.LightningModule):
                 "Loss MLP": loss,
             },
             prog_bar=True,
+            batch_size=1,
         )
 
     def train_svf(self, svf_opt) -> None:
@@ -165,6 +166,7 @@ class LongitudinalTrainingModule(pl.LightningModule):
                 "Loss Reg": reg_loss,
             },
             prog_bar=True,
+            batch_size=1,
         )
 
     def training_step(self, _) -> None:
@@ -241,12 +243,12 @@ class LongitudinalTrainingModule(pl.LightningModule):
         if self.dice_max < mean_dice:
             self.dice_max = mean_dice
             torch.save(self.model.state_dict(), os.path.join(self.save_path, "model_best.pth"))
-            self.log("Dice max", self.dice_max, prog_bar=True, on_epoch=True, sync_dist=True)
+            self.log("Dice max", self.dice_max, prog_bar=True, on_epoch=True, sync_dist=True, batch_size=1)
 
         self.log_dict({
             "Mean dice": mean_dice,
             "Negative Jacobian": max_jac_neg
-        }, prog_bar=True, on_epoch=True, sync_dist=True)
+        }, prog_bar=True, on_epoch=True, sync_dist=True, batch_size=1)
         xyz = displacement2grid(disp)
         _, D, H, W, _ = xyz.shape
         mid_slice = normalize_to_0_1(warped_image.squeeze())[..., W // 2:W // 2 + 1].permute(2, 0, 1).cpu()
@@ -255,4 +257,3 @@ class LongitudinalTrainingModule(pl.LightningModule):
     def save(self, path: str) -> None:
         """Saves the model state dicts to disk."""
         torch.save(self.model.state_dict(), os.path.join(path, "model.pth"))
-

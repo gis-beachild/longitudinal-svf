@@ -108,6 +108,7 @@ def main(cfg: DictConfig) -> None:
                          )],
                          val_check_interval=400, check_val_every_n_epoch=None,
                          gradient_clip_algorithm='norm',
+                         log_every_n_steps=1,
                          enable_progress_bar=True)
 
     trainer.fit(model=training_module,
