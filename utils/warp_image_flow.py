@@ -2,7 +2,6 @@ import argparse
 import monai
 import torch
 import torchio as tio
-import numpy as np
 if __name__ == '__main__':
 
     argparse = argparse.ArgumentParser("Image warping from a deformation field")

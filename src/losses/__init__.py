@@ -1,2 +1,8 @@
-from .regularisation.regularization import MagnitudeLoss, Grad3d
-from .pairwise_registration import PairwiseRegistrationLoss
+"""Similarity and regularization loss functions used to train the registration networks.
+
+Author: Fl0rian
+"""
+from .gradient import Grad3d
+from .magnitude import MagnitudeLoss
+from .jacobian import Jacobianloss
+from .inverse_consistency import InverseConsistency, IconInverseConsistency, GradIconInverseConsistency

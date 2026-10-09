@@ -2,7 +2,6 @@ import torch
 import torchvision
 import matplotlib.pyplot as plt
 import argparse
-import pandas as pd
 import torchio as tio
 import os
 import torchvision.transforms.functional as TF

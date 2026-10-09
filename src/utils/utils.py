@@ -1,11 +1,16 @@
+"""General-purpose helpers: volume normalization, differentiable SDF, CSV subject loading, directory management.
+
+Author: Fl0rian
+"""
 import os
 import torch
 import pandas as pd
-from typing import Callable, List
+from typing import Callable, List, Optional
 import torchio as tio
-import pytorch_volumetric as pv
+import torch.nn.functional as F
 
-def normalize_to_0_1(volume):
+
+def normalize_to_0_1(volume: torch.Tensor) -> torch.Tensor:
     '''
         Normalize volume to 0-1 range
     '''
@@ -13,8 +18,8 @@ def normalize_to_0_1(volume):
     min_val = volume.min()
     return (volume - min_val) / (max_val - min_val)
 
-import torch.nn.functional as F
-def compute_sdf_3d(mask):
+
+def compute_sdf_3d(mask: torch.Tensor) -> torch.Tensor:
     """
     label: (B,C,D,H,W) float binary
     Retourne: same shape, float SDF différentiable sur GPU
@@ -35,11 +40,12 @@ def compute_sdf_3d(mask):
     sign = torch.where(mask > 0.5, 1.0, -1.0)
     return sdf * sign
 
-def get_weight_from_sdm(sdm, max_distance=5):
+def get_weight_from_sdm(sdm: torch.Tensor, max_distance: float = 5) -> torch.Tensor:
+    """Convert a signed distance map to a Gaussian-decayed weight map, shape (1, 1, D, H, W)."""
     weight = torch.exp(- (sdm / max_distance)**2)
     return weight  # Taille (1, 1, D, H, W)
 
-def subjects_from_csv(dataset_path: str, age=True, lambda_age: Callable = lambda x: x) -> List[tio.Subject]:
+def subjects_from_csv(dataset_path: str, age: bool = True, lambda_age: Optional[Callable] = lambda x: x) -> List[tio.Subject]:
     """
     Function to create a list of subjects from a csv file
     Args:
@@ -66,7 +72,7 @@ def subjects_from_csv(dataset_path: str, age=True, lambda_age: Callable = lambda
     return subjects
 
 
-def create_new_versioned_directory(base_name='', start_version=0):
+def create_new_versioned_directory(base_name: str = '', start_version: int = 0) -> str:
     '''
         Create a new versioned directory
     '''
@@ -81,7 +87,7 @@ def create_new_versioned_directory(base_name='', start_version=0):
 
 
 # Create a new directory recursively if it does not exist
-def create_directory(directory):
+def create_directory(directory: str) -> str:
     '''
         Create a new directory recursively if it does not exist
     '''

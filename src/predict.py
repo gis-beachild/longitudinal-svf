@@ -12,11 +12,11 @@ import torchio as tio
 import pandas as pd
 import yaml
 from monai.metrics import DiceMetric # type: ignore
-from src.modules.svf_registration import RegistrationModule
+from modules.svf_registration import SVFRegistrationModule
 from modules.unet import DyNUnet
 from utils.grid_utils import warp
 
-from src.modules.longitudinal_model import LongitudinalDeformation
+from modules.longitudinal_model import LongitudinalDeformation
 
 # CLI --mode value -> LongitudinalDeformation.time_mode value
 MODE_TO_TIME_MODE = {
@@ -33,9 +33,9 @@ def format_number(n: int, max_n: int) -> str:
     return str(n).zfill(max_digits)
 
 
-def build_svf_model(device: Union[str, torch.device]) -> RegistrationModule:
+def build_svf_model(device: Union[str, torch.device]) -> SVFRegistrationModule:
     """Build the fixed DyNUnet-backed SVF registration model used for inference."""
-    return RegistrationModule(
+    return SVFRegistrationModule(
         model=DyNUnet(
             in_channels=2,
             out_channels=3,
@@ -44,7 +44,7 @@ def build_svf_model(device: Union[str, torch.device]) -> RegistrationModule:
         int_steps=9).eval().to(device)
 
 
-def inference_pairwise(source: tio.Subject, target: tio.Subject, model: RegistrationModule, device: Union[str, torch.device]):
+def inference_pairwise(source: tio.Subject, target: tio.Subject, model: SVFRegistrationModule, device: Union[str, torch.device]):
     """Predict forward/backward displacement fields between ``source`` and ``target`` subjects."""
     model.eval().to(device)
     source_img = source.image.data.unsqueeze(0).to(device)

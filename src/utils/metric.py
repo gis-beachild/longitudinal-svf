@@ -1,59 +1,72 @@
-import monai.networks.blocks
+"""Topology-aware (clDice) and Jacobian-based metrics for evaluating deformation quality.
+
+Author: Fl0rian
+"""
+import meshio
 import torch
 import torch.nn as nn
-from torch import Tensor
-from monai import networks
-import torch.nn.functional as F
-from typing import Union
 import numpy as np
 from src.losses.jacobian import compute_jacobian_determinant
 from skimage.morphology import skeletonize
+from src.utils.gyrification_index import compute_gyrification_index, rescale_initial_smooth_mesh_to_folded_mesh
 
-class clDiceMetric(nn.Module):
-    def __init__(self):
-        """
-        Compute the Soft clDice loss defined in:
+def cl_score(v, s):
+    """[this function computes the skeleton volume overlap]
 
-            Shit et al. (2021) clDice -- A Novel Topology-Preserving Loss Function
-            for Tubular Structure Segmentation. (https://arxiv.org/abs/2003.07311)
+    Args:
+        v ([bool]): [image]
+        s ([bool]): [skeleton]
 
-        Adapted from:
-            https://github.com/jocpae/clDice/blob/master/cldice_loss/pytorch/cldice.py#L7
-        """
-        super(clDiceMetric, self).__init__()
+    Returns:
+        [float]: [computed skeleton volume intersection]
+    """
+    return np.sum(v*s)/np.sum(s)
 
-    def cl_score(self, y_true: torch.Tensor, y_pred: torch.Tensor) -> torch.Tensor:
-        skel_pred = cl.soft_skel(y_pred, self.iter)
-        skel_true = cl.soft_skel(y_true, self.iter)
-        tprec = (torch.sum(torch.multiply(skel_pred, y_true)[:, 1:, ...]) + self.smooth) / (
-                torch.sum(skel_pred[:, 1:, ...]) + self.smooth
-        )
-        tsens = (torch.sum(torch.multiply(skel_true, y_pred)[:, 1:, ...]) + self.smooth) / (
-                torch.sum(skel_true[:, 1:, ...]) + self.smooth
-        )
-        cl_dice: torch.Tensor = 2.0 * (tprec * tsens) / (tprec + tsens)
-        return cl_dice
 
-    def forward(self, y_true: torch.Tensor, y_pred: torch.Tensor) -> torch.Tensor:
-        tprec = self.cl_score(y_pred.cpu().numpy(), skeletonize(y_true.cpu().numpy()))
-        tsens = self.cl_score(y_true.cpu().numpy(), skeletonize(y_pred.cpu().numpy()))
-        return 2 * tprec * tsens / (tprec + tsens)
+def clDice(v_p, v_l):
+    """[this function computes the cldice metric]
+
+    Args:
+        v_p ([bool]): [predicted image]
+        v_l ([bool]): [ground truth image]
+
+    Returns:
+        [float]: [cldice metric]
+    """
+    tprec = cl_score(v_p,skeletonize(v_l))
+    tsens = cl_score(v_l,skeletonize(v_p))
+    return 2*tprec*tsens/(tprec+tsens)
 
 class NegativeJacobian(nn.Module):
-    def __init__(self):
+    """Counts the number of voxels with a negative (folding) Jacobian determinant."""
+
+    def __init__(self) -> None:
         super(NegativeJacobian, self).__init__()
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """Count negative-Jacobian voxels in displacement/grid field ``x``."""
         return (compute_jacobian_determinant(x) < 0).sum()
 
 class LogJacobian(nn.Module):
-    def __init__(self):
+    """Log of the (clamped, non-negative) Jacobian determinant."""
+
+    def __init__(self) -> None:
         super(LogJacobian, self).__init__()
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """Compute the log-Jacobian-determinant map of ``x``, clamped away from zero."""
         det = compute_jacobian_determinant(x)
         eps = 1e-8
         safe_det = torch.clamp(det, min=eps)
         log_det = torch.log(safe_det)
         return log_det
 
+
+def GyrificationIndex(smooth_mesh_path: str, folded_mesh_path: str) -> float:
+    """Computes the gyrification index of a surface mesh, defined as the ratio of the total surface area to the convex hull area."""
+    smooth_mesh = meshio.read(smooth_mesh_path)
+    folded_mesh = meshio.read(folded_mesh_path)
+    # rescale initial smooth brain mesh onto the folded brain mesh
+    rescaled_initial_smooth_mesh = rescale_initial_smooth_mesh_to_folded_mesh(smooth_mesh, folded_mesh)
+    GI = compute_gyrification_index(rescaled_initial_smooth_mesh, folded_mesh)
+    return GI

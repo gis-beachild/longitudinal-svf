@@ -1,8 +1,11 @@
+"""Plotting helpers for inspecting Jacobian determinants and deformation grids.
 
+Author: Fl0rian
+"""
 
 import torch
 import matplotlib.pyplot as plt
-from .grid_utils import _make_identity_grid
+from matplotlib.figure import Figure
 
 def save_determinant_intensity(deformed_grid: torch.Tensor) -> None:
     """
@@ -32,7 +35,8 @@ def save_determinant_intensity(deformed_grid: torch.Tensor) -> None:
     plt.colorbar(label='|J(x)|')  # This shows the colormap scale as a legend
     plt.show()
 
-def compute_log_jacobian_det(u):
+def compute_log_jacobian_det(u: torch.Tensor) -> torch.Tensor:
+    """Compute the Jacobian determinant of a displacement field ``u``, shape (B, 3, D, H, W)."""
     # u: displacement field of shape (B, 3, D, H, W)
     # compute gradients along x, y, z
     du_dx = u[:, :, 2:, 1:-1, 1:-1] - u[:, :, :-2, 1:-1, 1:-1]
@@ -47,11 +51,12 @@ def compute_log_jacobian_det(u):
     return detJ
 
 
-def plt_grid(xy: torch.Tensor, factor, **kwargs):
+def plt_grid(xy: torch.Tensor, factor: int, **kwargs) -> Figure:
     """
     Plots the 2D grid
     Args:
         xy (torch.Tensor): generated grids [h, w]
+        factor (int): downsampling factor applied to the grid before plotting.
     """
     xy = xy[::factor, ::factor, :]
     H, W, _ = xy.shape

@@ -1,0 +1,28 @@
+# Python caches and tooling
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# IDE files
+.idea/
+.vscode/
+
+# Local datasets and generated experiment artifacts
+/data/
+/outputs/
+/results/
+/result/
+/utils/results_data/
+
+# Model checkpoints and logs
+*.ckpt
+*.pth
+*.pt
+*.log
+events.out.tfevents.*
+
+# OS metadata
+.DS_Store
+Thumbs.db
