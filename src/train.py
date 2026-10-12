@@ -7,6 +7,8 @@ Author: Fl0rian
 """
 import os
 import gc
+import argparse
+import sys
 import hydra
 import torch
 import pytorch_lightning as pl
@@ -23,6 +25,17 @@ from modules.longitudinal_model import LongitudinalDeformation
 
 gc.collect()
 torch.cuda.empty_cache()
+
+CLI_CHECKPOINT: str | None = None
+
+
+def _extract_checkpoint_argument(argv: list[str]) -> str | None:
+    """Remove ``--checkpoint`` from argv before Hydra parses its overrides."""
+    parser = argparse.ArgumentParser(add_help=False)
+    parser.add_argument('--checkpoint')
+    args, hydra_args = parser.parse_known_args(argv[1:])
+    argv[1:] = hydra_args
+    return args.checkpoint
 
 
 @hydra.main(version_base=None, config_path="../configs", config_name="config")
@@ -68,7 +81,7 @@ def main(cfg: DictConfig) -> None:
             lambda_reg=cfg.train_pair.lambda_reg,
             lambda_seg=cfg.train_pair.lambda_seg)
         max_steps = cfg.train_pair.max_steps
-        checkpoint = cfg.train_pair.checkpoint
+        configured_checkpoint = OmegaConf.select(cfg, 'train_pair.checkpoint')
     else:  # "longitudinal_linear" or "longitudinal_mlp"
         datamodule: pl.LightningDataModule = LongitudinalDataModule(
             **data_kwargs,
@@ -91,7 +104,9 @@ def main(cfg: DictConfig) -> None:
             lambda_seg=cfg.train_long.lambda_seg,
             num_inter_by_epoch=cfg.train_long.num_inter_by_epoch)
         max_steps = cfg.train_long.max_steps
-        checkpoint = cfg.train_long.checkpoint
+        configured_checkpoint = OmegaConf.select(cfg, 'train_long.checkpoint')
+
+    checkpoint = CLI_CHECKPOINT if CLI_CHECKPOINT is not None else configured_checkpoint
 
     if os.environ.get("SVF_SMOKE_TEST"):
         print("SVF_SMOKE_TEST set: model/datamodule/training_module built successfully, exiting before trainer.fit")
@@ -120,4 +135,5 @@ def main(cfg: DictConfig) -> None:
 
 
 if __name__ == '__main__':
+    CLI_CHECKPOINT = _extract_checkpoint_argument(sys.argv)
     main()
