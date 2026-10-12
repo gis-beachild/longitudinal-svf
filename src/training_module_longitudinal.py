@@ -254,5 +254,5 @@ class LongitudinalTrainingModule(pl.LightningModule):
         self.logger.experiment.add_image("Registered image", rotate(mid_slice, 90, expand=True).numpy(), self.current_epoch) # type: ignore
 
     def save(self, path: str) -> None:
-        """Saves the model state dicts to disk."""
-        torch.save(self.model.state_dict(), os.path.join(path, "model.pth"))
+        """Export inference-ready SVF and temporal-model state dictionaries."""
+        self.model.save(path)
