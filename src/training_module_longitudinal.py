@@ -109,9 +109,8 @@ class LongitudinalTrainingModule(pl.LightningModule):
                 loss += self.lambda_sim * (self.loss_sim(jw, tgt_img) + self.loss_sim(iw, tgt_img))
             if self.lambda_seg > 0:
                 jw_lab = warp(self.reference_labels[0], disp_j)
-                iw_lab = warp(self.reference_labels[1], disp_i)
                 tgt_lab = k["label"].data.to(self.device).unsqueeze(dim=0).float()
-                loss += self.lambda_seg * (self.loss_seg(jw_lab, tgt_lab) + self.loss_seg(iw_lab, tgt_lab))
+                loss += self.lambda_seg * self.loss_seg(jw_lab, tgt_lab)
             mlp_opt.zero_grad(set_to_none=True)
             self.manual_backward(loss)
             mlp_opt.step()
