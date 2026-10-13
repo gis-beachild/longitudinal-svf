@@ -236,11 +236,11 @@ class LongitudinalTrainingModule(pl.LightningModule):
                 warped_label,
                 target_one_hot
             )
+            neg_det_j = torch.nn.functional.relu(-compute_jacobian_determinant_3d(disp))
+            neg_det_j = (neg_det_j > 0).sum().item()
+            if max_jac_neg < neg_det_j:
+                max_jac_neg = neg_det_j
 
-        neg_det_j = torch.nn.functional.relu(-compute_jacobian_determinant_3d(disp))
-        neg_det_j = (neg_det_j > 0).sum().item()
-        if max_jac_neg < neg_det_j:
-            max_jac_neg = neg_det_j
         warped_image = warp(subjt_t0["image"].data.unsqueeze(0).float().to(self.device), disp)
         tio.LabelMap(tensor=torch.argmax(warped_label, dim=1).cpu().numpy(),
                      affine=subjt_t0['label'].affine).save(
