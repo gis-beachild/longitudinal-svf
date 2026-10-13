@@ -109,8 +109,11 @@ class LongitudinalTrainingModule(pl.LightningModule):
                 loss += self.lambda_sim * (self.loss_sim(jw, tgt_img) + self.loss_sim(iw, tgt_img))
             if self.lambda_seg > 0:
                 jw_lab = warp(self.reference_labels[0], disp_j)
+                iw_lab = warp(self.reference_labels[1], disp_i)
                 tgt_lab = k["label"].data.to(self.device).unsqueeze(dim=0).float()
-                loss += self.lambda_seg * self.loss_seg(jw_lab, tgt_lab)
+                loss += self.lambda_seg * (
+                    self.loss_seg(jw_lab, tgt_lab) + self.loss_seg(iw_lab, tgt_lab)
+                )
             mlp_opt.zero_grad(set_to_none=True)
             self.manual_backward(loss)
             mlp_opt.step()
@@ -146,8 +149,9 @@ class LongitudinalTrainingModule(pl.LightningModule):
                 int_loss += self.loss_sim(jw, tgt_img) + self.loss_sim(iw, tgt_img)
             if self.lambda_seg > 0:
                 jw_lab = warp(self.reference_labels[0], disp_j)
+                iw_lab = warp(self.reference_labels[1], disp_i)
                 tgt_lab = k["label"].data.to(self.device).unsqueeze(dim=0).float()
-                seg_loss += self.loss_seg(jw_lab, tgt_lab)
+                seg_loss += self.loss_seg(jw_lab, tgt_lab) + self.loss_seg(iw_lab, tgt_lab)
             flow_vi = compose(flow_v, disp_i)
             flow__vj = compose(flow__v, disp_j)
             grid_vi = displacement2grid(flow_vi)
