@@ -146,16 +146,20 @@ class LongitudinalDataModule(pl.LightningDataModule):
         val_dataset = LongitudinalDatasetValidation(self.val_subjects, transform=transform)
         return tio.SubjectsLoader(val_dataset, batch_size=self.batch_size, num_workers=self.num_workers)
 
-    def test_dataloader(self) -> tio.SubjectsLoader:
-        transform = tio.transforms.Compose([
+    def inference_transform(self) -> tio.transforms.Compose:
+        """Return the preprocessing used for prediction and test data."""
+        return tio.transforms.Compose([
             tio.transforms.CropOrPad(self.csize),
             tio.transforms.Resize(self.rsize),
             tio.transforms.RescaleIntensity(percentiles=(0.1, 99.9), include=['image']),
             tio.transforms.Clamp(out_min=0, out_max=1, include=['image']),
             *([self._label_transform()] if self.merge_labels_0_1 else []),
-            tio.transforms.OneHot(self.num_classes)
+            tio.transforms.OneHot(self.num_classes),
         ])
+
+    def test_dataloader(self) -> tio.SubjectsLoader:
         if self.val_subjects is None:
             self.setup("test")
-        test_dataset = LongitudinalDatasetValidation(self.val_subjects, transform=transform)
+        test_dataset = LongitudinalDatasetValidation(
+            self.val_subjects, transform=self.inference_transform())
         return tio.SubjectsLoader(test_dataset, batch_size=self.batch_size, num_workers=self.num_workers)

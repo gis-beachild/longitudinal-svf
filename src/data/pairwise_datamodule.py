@@ -70,7 +70,12 @@ class PairwiseRegistrationDataModule(pl.LightningDataModule):
                 label = tio.ScalarImage(row['label'])
                 if label.data.shape[0] == 1:
                     label = tio.LabelMap(row['label'])
-                subjects.append(tio.Subject(image=tio.ScalarImage(row['image']), label=label))
+                metadata = {'age': row['age']} if 'age' in row else {}
+                subjects.append(tio.Subject(
+                    image=tio.ScalarImage(row['image']),
+                    label=label,
+                    **metadata,
+                ))
             return subjects
 
         self.subjects = make_subjects(train_rows)
@@ -116,15 +121,19 @@ class PairwiseRegistrationDataModule(pl.LightningDataModule):
                                   shuffle=False,
                                   prefetch_factor=2)
 
-    def test_dataloader(self) -> tio.SubjectsLoader:
-        transform = tio.transforms.Compose([
+    def inference_transform(self) -> tio.transforms.Compose:
+        """Return the preprocessing used for prediction and test data."""
+        return tio.transforms.Compose([
             tio.transforms.CropOrPad(self.csize),
             tio.transforms.Resize(self.rsize),
             tio.transforms.RescaleIntensity(out_min_max=(0, 1), percentiles=(0.5, 99.5), masking_method='label'),
             *([self._label_transform()] if self.merge_labels_0_1 else []),
             tio.transforms.OneHot(self.num_classes),
         ])
-        test_dataset = PairwiseSubjectsDatasetValidation(self.val_subjects, transform=transform)
+
+    def test_dataloader(self) -> tio.SubjectsLoader:
+        test_dataset = PairwiseSubjectsDatasetValidation(
+            self.val_subjects, transform=self.inference_transform())
         return tio.SubjectsLoader(test_dataset, batch_size=1,
                                   num_workers=self.num_workers,
                                   persistent_workers=False)
