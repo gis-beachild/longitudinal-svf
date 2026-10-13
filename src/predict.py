@@ -6,6 +6,8 @@ import os.path
 import argparse
 from typing import Union
 
+import nibabel as nib
+import numpy as np
 import torch
 import torchio as tio
 import yaml
@@ -48,6 +50,28 @@ def _datamodule_kwargs(config: dict) -> dict:
 def _load_weights(module: torch.nn.Module, path: str, device: Union[str, torch.device]) -> None:
     """Load an inference state dictionary on the selected device."""
     module.load_state_dict(torch.load(path, map_location=device, weights_only=True))
+
+
+def _flow_to_ras_mm(flow_voxel: torch.Tensor, affine: np.ndarray) -> torch.Tensor:
+    """Convert ``(3, I, J, K)`` voxel-axis displacements to RAS millimetres."""
+    linear = torch.as_tensor(
+        np.asarray(affine[:3, :3]), dtype=flow_voxel.dtype, device=flow_voxel.device
+    )
+    return torch.einsum("rc,cijk->rijk", linear, flow_voxel)
+
+
+def _save_displacement_nifti(
+        flow_ras_mm: torch.Tensor, affine: np.ndarray, output_path: str) -> None:
+    """Save RAS-mm vectors as a NIfTI ``DISPVECT`` deformation field."""
+    if flow_ras_mm.ndim != 4 or flow_ras_mm.shape[0] != 3:
+        raise ValueError(
+            f"flow must have shape (3, I, J, K), got {tuple(flow_ras_mm.shape)}"
+        )
+    data = flow_ras_mm.detach().cpu().permute(1, 2, 3, 0).unsqueeze(3).numpy()
+    image = nib.Nifti1Image(data.astype(np.float32, copy=False), affine)
+    image.header.set_intent(1006, name="displacement")
+    image.header.set_xyzt_units(xyz="mm")
+    nib.save(image, output_path)
 
 
 def format_number(n: int, max_n: int) -> str:
@@ -109,16 +133,22 @@ def run_pairwise(source_subject: tio.Subject, target_subject: tio.Subject,
     warped_source_img = warp(source_img, forward_flow)
     warped_source_label = warp(source_label, forward_flow)
 
+    flow_ras_mm = _flow_to_ras_mm(
+        forward_flow.squeeze(0), source_subject_transformed.image.affine
+    )
     warped_subjects = tio.Subject(
         image=tio.ScalarImage(tensor=warped_source_img.squeeze(0).cpu().detach(), affine=source_subject_transformed.image.affine),
         label=tio.LabelMap(tensor=torch.argmax(warped_source_label, dim=1).cpu().detach(), affine=source_subject_transformed.label.affine),
-        flow=tio.ScalarImage(tensor=forward_flow.squeeze(0).detach().cpu(), affine=source_subject_transformed.image.affine)
+        flow=tio.ScalarImage(tensor=flow_ras_mm.detach().cpu(), affine=source_subject_transformed.image.affine)
     )
 
     warped_subjects = reverse_transform(warped_subjects)
-    warped_subjects.flow.data = warped_subjects.flow.data * torch.tensor(source_subject.spacing).view(3, 1, 1, 1)
     warped_subjects.image.save(os.path.join(result_save_path_images, f"warped-t{index}.nii.gz"))
-    warped_subjects.flow.save(os.path.join(result_save_path_flows, f"df-t{index}.nii.gz"))
+    _save_displacement_nifti(
+        warped_subjects.flow.data,
+        warped_subjects.flow.affine,
+        os.path.join(result_save_path_flows, f"df-t{index}.nii.gz"),
+    )
     warped_subjects.label.save(os.path.join(result_save_path_seg, f"warped-t{index}_label.nii.gz"))
 
 
@@ -218,10 +248,13 @@ def predict_longitudinal(args: argparse.Namespace) -> None:
             ).movedim(-1, 1).float()
             j = format_number(i, len(subjects))
 
+            flow_ras_mm = _flow_to_ras_mm(
+                forward_flow.squeeze(0), source_processed.image.affine
+            )
             warped_subject = tio.Subject(
                 image=tio.ScalarImage(tensor=warped_source_image.detach().cpu().squeeze(0), affine=source_processed.image.affine),
                 label=tio.LabelMap(tensor=warped_source_label.squeeze(0).int().detach().cpu(), affine=source_processed.label.affine),
-                flow=tio.ScalarImage(tensor=forward_flow.squeeze(0).detach().cpu(), affine=source_processed.image.affine)
+                flow=tio.ScalarImage(tensor=flow_ras_mm.detach().cpu(), affine=source_processed.image.affine)
             )
             dice_metric = DiceMetric(include_background=True)
             dice = dice_metric(
@@ -231,9 +264,12 @@ def predict_longitudinal(args: argparse.Namespace) -> None:
             print(dice)
             dice_metric.reset()
             warped_subject = reverse_transform(warped_subject)
-            warped_subject.flow.data = warped_subject.flow.data * torch.tensor(source_subject.spacing).view(3, 1, 1, 1)
             warped_subject.image.save(os.path.join(result_save_path_images, f"warped-t{j}.nii.gz"))
-            warped_subject.flow.save(os.path.join(result_save_path_flows, f"df-t{j}.nii.gz"))
+            _save_displacement_nifti(
+                warped_subject.flow.data,
+                warped_subject.flow.affine,
+                os.path.join(result_save_path_flows, f"df-t{j}.nii.gz"),
+            )
             warped_subject.label.save(os.path.join(result_save_path_seg, f"warped-t{j}_label.nii.gz"))
 
 
