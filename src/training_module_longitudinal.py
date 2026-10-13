@@ -47,6 +47,7 @@ class LongitudinalTrainingModule(pl.LightningModule):
         self.automatic_optimization = False
         self.loss_seg = torch.nn.MSELoss(reduction='mean')
         self.loss_sim = monai.losses.LocalNormalizedCrossCorrelationLoss(kernel_size=21) # type: ignore
+        self._latest_train_metrics: dict[str, Tensor] = {}
 
     def forward(self, source: Tensor, target: Tensor) -> Tensor:
         """Predict the stationary velocity field between ``source`` and ``target``."""
@@ -124,6 +125,7 @@ class LongitudinalTrainingModule(pl.LightningModule):
             prog_bar=True,
             batch_size=1,
         )
+        self._latest_train_metrics["mlp"] = loss.detach()
 
     def train_svf(self, svf_opt) -> None:
         """Take one manual-optimization pass over the SVF backbone (intensity, segmentation, and inverse-consistency losses)."""
@@ -174,6 +176,12 @@ class LongitudinalTrainingModule(pl.LightningModule):
             prog_bar=True,
             batch_size=1,
         )
+        self._latest_train_metrics.update({
+            "global": loss.detach(),
+            "similarity": int_loss.detach(),
+            "segmentation": seg_loss.detach(),
+            "regularization": reg_loss.detach(),
+        })
 
     def training_step(self, _) -> None:
         """Run one manual-optimization step over the SVF backbone, then (in mlp mode) the temporal MLP."""
@@ -191,6 +199,13 @@ class LongitudinalTrainingModule(pl.LightningModule):
     def on_train_epoch_end(self) -> None:
         """Checkpoint the full longitudinal model at the end of every training epoch."""
         torch.save(self.model.state_dict(), os.path.join(self.save_path, "last_model.pth"))
+        values = " ".join(
+            f"{name}={value.item():.6g}"
+            for name, value in self._latest_train_metrics.items()
+        )
+        self.print(
+            f"Epoch {self.current_epoch + 1} step={self.global_step} {values}"
+        )
 
     def validation_step(self, _) -> None:
         """Warp the ``t0`` subject to every subject's age, log Dice/negative-Jacobian, and save debug volumes."""
