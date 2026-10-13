@@ -155,10 +155,8 @@ class LongitudinalTrainingModule(pl.LightningModule):
                 tgt_lab = k["label"].data.to(self.device).unsqueeze(dim=0).float()
                 seg_loss += self.loss_seg(jw_lab, tgt_lab) + self.loss_seg(iw_lab, tgt_lab)
             reg_t = torch.rand(1, device=self.device)
-            with torch.no_grad():
-                reg_time = self.model.encode_time(reg_t).detach()
-            reg_disp_j = self.model.svf_model.velocity2displacement(velocity * reg_time)
-            reg_disp_i = self.model.svf_model.velocity2displacement(velocity * (reg_time - one))
+            reg_disp_j = self.model.svf_model.velocity2displacement(velocity * reg_t)
+            reg_disp_i = self.model.svf_model.velocity2displacement(velocity * (reg_t - one))
             flow_vi = compose(flow_v, reg_disp_i)
             flow__vj = compose(flow__v, reg_disp_j)
             grid_vi = displacement2grid(flow_vi)
