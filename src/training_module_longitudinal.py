@@ -203,9 +203,11 @@ class LongitudinalTrainingModule(pl.LightningModule):
             f"{name}={value.item():.6g}"
             for name, value in self._latest_train_metrics.items()
         )
-        self.print(
-            f"Epoch {self.current_epoch + 1} step={self.global_step} {values}"
-        )
+        log_line = f"Epoch {self.current_epoch + 1} step={self.global_step} {values}"
+        self.print(log_line)
+        if self.trainer.is_global_zero:
+            with open(os.path.join(self.save_path, "training.log"), "a", encoding="utf-8") as log_file:
+                log_file.write(log_line + "\n")
 
     def validation_step(self, _) -> None:
         """Warp the ``t0`` subject to every subject's age, log Dice/negative-Jacobian, and save debug volumes."""
