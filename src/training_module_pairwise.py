@@ -42,6 +42,8 @@ class RegistrationTrainingModule(pl.LightningModule):
         self.lambda_seg = lambda_seg
         self.lambda_sim = lambda_sim
         self.lambda_reg = lambda_reg
+        self._epoch_loss_sums: torch.Tensor | None = None
+        self._epoch_batch_count = 0
 
     def forward(self, source: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
         """
@@ -59,6 +61,8 @@ class RegistrationTrainingModule(pl.LightningModule):
     def on_train_epoch_start(self) -> None:
         self.dice_max = 0
         self.reg_model.train()
+        self._epoch_loss_sums = torch.zeros(4, device=self.device)
+        self._epoch_batch_count = 0
 
     def training_step(self, batch: dict) -> torch.Tensor:
         """Compute the combined intensity/segmentation/regularization loss for one source-target pair."""
@@ -104,12 +108,27 @@ class RegistrationTrainingModule(pl.LightningModule):
             "Segmentation": loss_errors[1],
             "Regulation": loss_errors[2]
         }, prog_bar=True, on_epoch=True, sync_dist=True)
+        if self._epoch_loss_sums is not None:
+            self._epoch_loss_sums += torch.stack((loss, *loss_errors)).detach()
+            self._epoch_batch_count += 1
         return loss
 
 
     def on_train_epoch_end(self) -> None:
         """Checkpoint the registration model at the end of every training epoch."""
         torch.save(self.reg_model.state_dict(), self.save_path + "/last_model.pth")
+        if self._epoch_loss_sums is not None and self._epoch_batch_count:
+            mean_losses = self._epoch_loss_sums / self._epoch_batch_count
+            names = ("global", "similarity", "segmentation", "regularization")
+            values = " ".join(
+                f"{name}={value.item():.6g}"
+                for name, value in zip(names, mean_losses)
+            )
+            log_line = f"Epoch {self.current_epoch + 1} step={self.global_step} {values}"
+            self.print(log_line)
+            if self.trainer.is_global_zero:
+                with open(os.path.join(self.save_path, "training.log"), "a", encoding="utf-8") as log_file:
+                    log_file.write(log_line + "\n")
         gc.collect()
 
     def validation_step(self, batch: dict) -> None:
