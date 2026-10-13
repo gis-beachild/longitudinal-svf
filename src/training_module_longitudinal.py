@@ -139,11 +139,11 @@ class LongitudinalTrainingModule(pl.LightningModule):
             flow_v = self.model.svf_model.velocity2displacement(velocity)  # φ_{+1}
             flow__v = self.model.svf_model.velocity2displacement(-velocity)  # φ_{-1}
             k = self.trainer.train_dataloader.dataset[i] # type: ignore
-            t = torch.tensor([k['age']], device=self.device)
+            data_t = torch.tensor([k['age']], device=self.device)
             with torch.no_grad():
-                time = self.model.encode_time(t).detach()
-            disp_j = self.model.svf_model.velocity2displacement(velocity * time)
-            disp_i = self.model.svf_model.velocity2displacement(velocity * (time - one))
+                data_time = self.model.encode_time(data_t).detach()
+            disp_j = self.model.svf_model.velocity2displacement(velocity * data_time)
+            disp_i = self.model.svf_model.velocity2displacement(velocity * (data_time - one))
             if self.lambda_sim > 0:
                 jw = warp(self.reference_images[0], disp_j)
                 iw = warp(self.reference_images[1], disp_i)
@@ -154,12 +154,17 @@ class LongitudinalTrainingModule(pl.LightningModule):
                 iw_lab = warp(self.reference_labels[1], disp_i)
                 tgt_lab = k["label"].data.to(self.device).unsqueeze(dim=0).float()
                 seg_loss += self.loss_seg(jw_lab, tgt_lab) + self.loss_seg(iw_lab, tgt_lab)
-            flow_vi = compose(flow_v, disp_i)
-            flow__vj = compose(flow__v, disp_j)
+            reg_t = torch.rand(1, device=self.device)
+            with torch.no_grad():
+                reg_time = self.model.encode_time(reg_t).detach()
+            reg_disp_j = self.model.svf_model.velocity2displacement(velocity * reg_time)
+            reg_disp_i = self.model.svf_model.velocity2displacement(velocity * (reg_time - one))
+            flow_vi = compose(flow_v, reg_disp_i)
+            flow__vj = compose(flow__v, reg_disp_j)
             grid_vi = displacement2grid(flow_vi)
             grid__vj = displacement2grid(flow__vj)
-            grid_j = displacement2grid(disp_j)
-            grid_i = displacement2grid(disp_i)
+            grid_j = displacement2grid(reg_disp_j)
+            grid_i = displacement2grid(reg_disp_i)
             reg_loss += torch.nn.functional.mse_loss(grid_vi, grid_j)
             reg_loss += torch.nn.functional.mse_loss(grid__vj, grid_i)
             svf_opt.zero_grad(set_to_none=True)
