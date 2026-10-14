@@ -48,7 +48,11 @@ def main(cfg: DictConfig) -> None:
     os.makedirs(save_dir, exist_ok=True)
     sub_save_dir = os.path.join(save_dir, os.path.basename(HydraConfig.get().runtime.output_dir))
     os.makedirs(sub_save_dir, exist_ok=True)
-    tensorboard_logger = pl.loggers.TensorBoardLogger(save_dir=os.path.join(save_dir, 'log'), name=None, version='') # type: ignore
+    tensorboard_logger = pl.loggers.TensorBoardLogger(
+        save_dir=sub_save_dir,
+        name='',
+        version='',
+    ) # type: ignore
     svf_model: SVFRegistrationModule = hydra.utils.instantiate(cfg.svf_model)
     json_data = OmegaConf.select(cfg, 'data.train_json') is not None
     end_time = cfg.data.tn if json_data else cfg.data.t1

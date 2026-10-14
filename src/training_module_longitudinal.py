@@ -275,6 +275,10 @@ class LongitudinalTrainingModule(pl.LightningModule):
             "Mean dice": mean_dice,
             "Negative Jacobian": max_jac_neg
         }, prog_bar=True, on_epoch=True, sync_dist=True, batch_size=1)
+        self.print(
+            f"Validation epoch={self.current_epoch + 1} "
+            f"mean_dice={mean_dice:.6g} negative_jacobian={int(max_jac_neg)}"
+        )
         xyz = displacement2grid(disp)
         _, D, H, W, _ = xyz.shape
         mid_slice = normalize_to_0_1(warped_image.squeeze())[..., W // 2:W // 2 + 1].permute(2, 0, 1).cpu()

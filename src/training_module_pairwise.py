@@ -165,7 +165,10 @@ class RegistrationTrainingModule(pl.LightningModule):
             torch.save(self.reg_model.state_dict(), self.save_path + "/best_model.pth")
         self.logger.experiment.add_scalar("Mean dice", mean_dices, self.current_epoch) # type: ignore
         self.logger.experiment.add_scalar("Worst jacobian", self.jacobian_nb_value, self.current_epoch) # type: ignore
-        print(f"Validation mean dice: {mean_dices}, worst jacobian: {self.jacobian_nb_value}")
+        self.print(
+            f"Validation epoch={self.current_epoch + 1} "
+            f"mean_dice={mean_dices:.6g} negative_jacobian={int(self.jacobian_nb_value)}"
+        )
         gc.collect()
 
     def save(self, path: str) -> None:
