@@ -166,24 +166,27 @@ class LongitudinalTrainingModule(pl.LightningModule):
             reg_loss += torch.nn.functional.mse_loss(grid_vi, grid_j)
             reg_loss += torch.nn.functional.mse_loss(grid__vj, grid_i)
             svf_opt.zero_grad(set_to_none=True)
-            loss = self.lambda_sim * int_loss + self.lambda_seg * seg_loss + self.lambda_reg * reg_loss
+            weighted_int_loss = self.lambda_sim * int_loss
+            weighted_seg_loss = self.lambda_seg * seg_loss
+            weighted_reg_loss = self.lambda_reg * reg_loss
+            loss = weighted_int_loss + weighted_seg_loss + weighted_reg_loss
             self.manual_backward(loss)
             svf_opt.step()
         self.log_dict(
             {
                 "Loss Global": loss,
-                "Loss SVF-Int": int_loss,
-                "Loss SVF-Seg": seg_loss,
-                "Loss Reg": reg_loss,
+                "Loss SVF-Int": weighted_int_loss,
+                "Loss SVF-Seg": weighted_seg_loss,
+                "Loss Reg": weighted_reg_loss,
             },
             prog_bar=True,
             batch_size=1,
         )
         self._latest_train_metrics.update({
             "global": loss.detach(),
-            "similarity": int_loss.detach(),
-            "segmentation": seg_loss.detach(),
-            "regularization": reg_loss.detach(),
+            "similarity": weighted_int_loss.detach(),
+            "segmentation": weighted_seg_loss.detach(),
+            "regularization": weighted_reg_loss.detach(),
         })
 
     def training_step(self, _) -> None:
